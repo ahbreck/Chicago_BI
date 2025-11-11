@@ -108,7 +108,7 @@ func main() {
 		go collectors.GetBuildingPermits(db)
 		go collectors.GetTaxiTrips(db)
 
-		// go GetCovidDetails(db)
+		go collectors.GetCovidDetails(db)
 		// go GetCCVIDetails(db)
 
 		http.HandleFunc("/", handler)
