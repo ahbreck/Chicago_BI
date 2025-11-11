@@ -1,0 +1,80 @@
+# Docker Compose file Reference (https://docs.docker.com/compose/compose-file/)
+version: '3.9'
+
+# Define services
+services:
+
+  # Placeholder App Service
+  app:
+    image: alpine:latest
+    container_name: chicago_business_intelligence
+    command: ["sleep", "infinity"]
+    networks:
+      - backend
+    depends_on:
+      - postgresdb
+    restart: unless-stopped
+
+  # Public Health Data Service
+  public-health-service:
+    build:
+      context: ./public-health-service
+      dockerfile: Dockerfile
+    container_name: public_health_service
+    depends_on:
+      - postgresdb
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # Permits Data Service
+  permits-service:
+    build:
+      context: ./permits-service
+      dockerfile: Dockerfile
+    container_name: permits_service
+    depends_on:
+      - postgresdb
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # Postgres Service   
+  postgresdb:
+    image: postgres
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=chicago_business_intelligence
+      - PGDATA=/var/lib/postgresql/data
+      #- PGPORT=5433
+    ports:
+      - '5433:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  # pgadmin service
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin4
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: user@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: SuperSecret
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "8085:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin 
+    networks:
+      - backend
+
+networks:
+  backend:  
+  
+volumes:
+  db-data:
+  pgadmin-data:
