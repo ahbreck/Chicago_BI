@@ -117,7 +117,7 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 			//record.Pickup_centroid_longitude == "" ||
 			//record.Dropoff_centroid_latitude == "" ||
 			//record.Dropoff_centroid_longitude == "" {
-			fmt.Printf("Skipping record due to missing fields: %+v\n", record)
+			//fmt.Printf("Skipping record due to missing fields: %+v\n", record)
 			skippedCount++
 			continue
 		}

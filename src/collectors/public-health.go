@@ -49,7 +49,7 @@ func GetUnemploymentRates(db *sql.DB) {
 
 	// There are 77 known community areas in the data set
 	// So, set limit to 100.
-	var url = "https://data.cityofchicago.org/resource/iqnk-2tcu.json?$select=community_area,below_poverty_level,unemployment,per_capita_income&$limit=1"
+	var url = "https://data.cityofchicago.org/resource/iqnk-2tcu.json?$select=community_area,below_poverty_level,unemployment,per_capita_income&$limit=100"
 
 	res, err := shared.FetchFastAPI(url)
 	if err != nil {
@@ -74,6 +74,9 @@ func GetUnemploymentRates(db *sql.DB) {
 				unemployment = EXCLUDED.unemployment,
 				per_capita_income = EXCLUDED.per_capita_income;`
 
+	insertedCount := 0
+	skippedCount := 0
+
 	for _, record := range unemployment_data_list {
 
 		// We will execute defensive coding to check for messy/dirty/missing data values
@@ -83,6 +86,7 @@ func GetUnemploymentRates(db *sql.DB) {
 			record.Below_poverty_level == "" ||
 			record.Unemployment == "" ||
 			record.Per_capita_income == "" {
+			skippedCount++
 			continue
 		}
 
@@ -96,9 +100,8 @@ func GetUnemploymentRates(db *sql.DB) {
 		if err != nil {
 			panic(err)
 		}
-
+		insertedCount++
 	}
-
-	fmt.Println("Completed Inserting Rows into the unemployment table")
+	fmt.Printf("Completed inserting %d rows into the unemployment table. Skipped %d records due to data quality issues.\n", insertedCount, skippedCount)
 
 }

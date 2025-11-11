@@ -77,6 +77,9 @@ func GetBuildingPermits(db *sql.DB) {
 	s := fmt.Sprintf("\n\n Building Permits: number of SODA records received = %d\n\n", len(building_data_list))
 	io.WriteString(os.Stdout, s)
 
+	insertedCount := 0
+	skippedCount := 0
+
 	for _, record := range building_data_list {
 
 		// We will execute defensive coding to check for messy/dirty/missing data values
@@ -93,7 +96,8 @@ func GetBuildingPermits(db *sql.DB) {
 			//.Location == "" ||
 			record.Community_area == "" ||
 			record.Census_tract == "" {
-			fmt.Printf("Skipping record due to missing fields: %+v\n", record)
+			//fmt.Printf("Skipping record due to missing fields: %+v\n", record)
+			skippedCount++
 			continue
 		}
 
@@ -120,8 +124,9 @@ func GetBuildingPermits(db *sql.DB) {
 		if err != nil {
 			panic(err)
 		}
+		insertedCount++
 
 	}
 
-	fmt.Println("Completed Inserting Rows into the Building Permits Table")
+	fmt.Printf("Completed Inserting %d rows into the Building Permits Table. Skipped %d records due to data quality issues.\n", insertedCount, skippedCount)
 }
