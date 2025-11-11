@@ -9,6 +9,8 @@ import (
 	"os"
 
 	_ "github.com/lib/pq"
+
+	"github.com/ahbreck/Chicago_BI/shared"
 )
 
 type UnemploymentJsonRecords []struct {
@@ -49,7 +51,7 @@ func GetUnemploymentRates(db *sql.DB) {
 	// So, set limit to 100.
 	var url = "https://data.cityofchicago.org/resource/iqnk-2tcu.json?$select=community_area,below_poverty_level,unemployment,per_capita_income&$limit=1"
 
-	res, err := fetchFastAPI(url)
+	res, err := shared.FetchFastAPI(url)
 	if err != nil {
 		panic(err)
 	}

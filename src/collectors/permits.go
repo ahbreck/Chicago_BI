@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 
 	_ "github.com/lib/pq"
+
+	"github.com/ahbreck/Chicago_BI/shared"
 )
 
 type BuildingPermitsJsonRecords []struct {
@@ -58,7 +60,7 @@ func GetBuildingPermits(db *sql.DB) {
 
 	var url = "https://data.cityofchicago.org/resource/building-permits.json?$select=id,permit_,permit_type,issue_date,street_number,street_name,latitude,longitude,community_area,census_tract&$limit=100"
 
-	res, err := fetchFastAPI(url)
+	res, err := shared.FetchFastAPI(url)
 	if err != nil {
 		panic(err)
 	}

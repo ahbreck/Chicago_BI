@@ -12,6 +12,8 @@ import (
 
 	"github.com/kelvins/geocoder"
 	_ "github.com/lib/pq"
+
+	"github.com/ahbreck/Chicago_BI/shared"
 )
 
 type TripRecord struct {
@@ -87,7 +89,7 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 	// Build API URL dynamically
 	url := fmt.Sprintf("https://data.cityofchicago.org/resource/%s.json?$limit=%d", apiCode, limit)
 
-	res, err := fetchSlowAPI(url)
+	res, err := shared.FetchSlowAPI(url)
 	if err != nil {
 		panic(err)
 	}
