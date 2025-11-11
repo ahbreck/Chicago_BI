@@ -1,12 +1,12 @@
-package main
+package collectors
 
 import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"net/http"
-	"time"
+	"os"
 
 	_ "github.com/lib/pq"
 )
@@ -16,54 +16,6 @@ type UnemploymentJsonRecords []struct {
 	Below_poverty_level string `json:"below_poverty_level"`
 	Unemployment        string `json:"unemployment"`
 	Per_capita_income   string `json:"per_capita_income"`
-}
-
-func main() {
-
-	// Establish connection to Postgres Database
-
-	// OPTION 2
-	// Docker container for the Postgres microservice - uncomment when deploy with host.docker.internal
-	db_connection := "user=postgres dbname=chicago_business_intelligence password=root host=postgresdb sslmode=disable port=5432"
-
-	// OPTION 3
-	// Docker container for the Postgress microservice - uncomment when deploy with IP address of the container
-	// To find your Postgres container IP, use the command with your network name listed in the docker compose file as follows:
-	// docker network inspect cbi_backend
-	//db_connection := "user=postgres dbname=chicago_business_intelligence password=root host=172.19.0.2 sslmode=disable port = 5433"
-
-	db, err := sql.Open("postgres", db_connection)
-	if err != nil {
-		panic(err)
-	}
-
-	// Test the database connection
-	maxRetries := 10
-	for i := 1; i <= maxRetries; i++ {
-		err = db.Ping()
-		if err == nil {
-			fmt.Println("Connected to database successfully")
-			break
-		}
-		fmt.Printf("Attempt %d/%d: Couldn't connect to database (%v)\n", i, maxRetries, err)
-		time.Sleep(5 * time.Second)
-	}
-
-	if err != nil {
-		panic(fmt.Sprintf("Database not reachable after %d attempts: %v", maxRetries, err))
-	}
-
-	// Spin in a loop and pull data from the city of chicago data portal
-	// Once every hour, day, week, etc.
-	// Though, please note that Not all datasets need to be pulled on daily basis
-	// fine-tune the following code-snippet as you see necessary
-	for {
-		fmt.Println("Connected to database successfully")
-		GetUnemploymentRates(db)
-		fmt.Println("Finished weekly update, sleeping for 7 days...")
-		time.Sleep(365 * 24 * time.Hour) // sleep for one year because this dataset does not change frequently
-	}
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -93,11 +45,11 @@ func GetUnemploymentRates(db *sql.DB) {
 
 	fmt.Println("Created Table for Unemployment")
 
-	// While doing unit-testing keep the limit value to 500
-	// later you could change it to 1000, 2000, 10,000, etc.
+	// There are 77 known community areas in the data set
+	// So, set limit to 100.
 	var url = "https://data.cityofchicago.org/resource/iqnk-2tcu.json?$select=community_area,below_poverty_level,unemployment,per_capita_income&$limit=1"
 
-	res, err := http.Get(url)
+	res, err := fetchFastAPI(url)
 	if err != nil {
 		panic(err)
 	}
@@ -109,6 +61,9 @@ func GetUnemploymentRates(db *sql.DB) {
 	body, _ := ioutil.ReadAll(res.Body)
 	var unemployment_data_list UnemploymentJsonRecords
 	json.Unmarshal(body, &unemployment_data_list)
+
+	s := fmt.Sprintf("\n\n Community Areas number of SODA records received = %d\n\n", len(unemployment_data_list))
+	io.WriteString(os.Stdout, s)
 
 	sql := `INSERT INTO unemployment ("community_area", "below_poverty_level", "unemployment", "per_capita_income")
 			VALUES ($1, $2, $3, $4)
@@ -141,5 +96,7 @@ func GetUnemploymentRates(db *sql.DB) {
 		}
 
 	}
+
+	fmt.Println("Completed Inserting Rows into the unemployment table")
 
 }

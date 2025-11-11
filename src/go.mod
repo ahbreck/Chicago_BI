@@ -1,8 +1,9 @@
-module main
+module github.com/ahbreck/Chicago_BI
 
-go 1.16
+go 1.24.4
 
 require (
-	github.com/kelvins/geocoder v0.0.0-20200113010004-f579500e9e27
-	github.com/lib/pq v1.10.5
+	github.com/joho/godotenv v1.5.1
+	github.com/kelvins/geocoder v0.0.0-20231112130812-98d82c75e49b
+	github.com/lib/pq v1.10.9
 )
