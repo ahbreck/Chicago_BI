@@ -6,12 +6,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
 	"github.com/ahbreck/Chicago_BI/collectors"
+	"github.com/ahbreck/Chicago_BI/reports"
 )
 
 // Declare database connection
@@ -116,11 +118,45 @@ func main() {
 		// build and fine-tune the functions to pull data from the different data sources
 		// The following code snippets show you how to pull data from different data sources
 
-		go collectors.GetUnemploymentRates(db) // could probably sleep for one year because this dataset does not change frequently
-		go collectors.GetBuildingPermits(db)
-		go collectors.GetTaxiTrips(db)
-		go collectors.GetCovidDetails(db)
-		go collectors.GetCCVIDetails(db)
+		//go collectors.GetUnemploymentRates(db) // could probably sleep for one year because this dataset does not change frequently
+		//go collectors.GetBuildingPermits(db)
+		//go collectors.GetTaxiTrips(db)
+		//go collectors.GetCovidDetails(db)
+		//go collectors.GetCCVIDetails(db)
+
+		var wg sync.WaitGroup
+		wg.Add(5)
+
+		go func() {
+			defer wg.Done()
+			collectors.GetUnemploymentRates(db) // could probably sleep for one year because this dataset does not change frequently
+		}()
+
+		go func() {
+			defer wg.Done()
+			collectors.GetBuildingPermits(db)
+		}()
+
+		go func() {
+			defer wg.Done()
+			collectors.GetTaxiTrips(db)
+		}()
+
+		go func() {
+			defer wg.Done()
+			collectors.GetCovidDetails(db)
+		}()
+
+		go func() {
+			defer wg.Done()
+			collectors.GetCCVIDetails(db)
+		}()
+
+		wg.Wait()
+
+		if err := reports.CreateDisadvantagedReport(db); err != nil {
+			log.Printf("failed to create disadvantaged report: %v", err)
+		}
 
 		http.HandleFunc("/", handler)
 

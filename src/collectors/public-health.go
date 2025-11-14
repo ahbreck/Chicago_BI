@@ -14,10 +14,10 @@ import (
 )
 
 type UnemploymentJsonRecords []struct {
-	Community_area      string `json:"community_area"`
-	Below_poverty_level string `json:"below_poverty_level"`
-	Unemployment        string `json:"unemployment"`
-	Per_capita_income   string `json:"per_capita_income"`
+	Community_area      string  `json:"community_area"`
+	Below_poverty_level float64 `json:"below_poverty_level"`
+	Unemployment        float64 `json:"unemployment"`
+	Per_capita_income   float64 `json:"per_capita_income"`
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -26,18 +26,17 @@ type UnemploymentJsonRecords []struct {
 func GetUnemploymentRates(db *sql.DB) {
 	fmt.Println("GetUnemploymentRates: Collecting Unemployment Rates Data")
 
-	drop_table := `drop table if exists unemployment`
+	drop_table := `drop table if exists public_health`
 	_, err := db.Exec(drop_table)
 	if err != nil {
 		panic(err)
 	}
 
-	create_table := `CREATE TABLE IF NOT EXISTS "unemployment" (
-		"id" SERIAL PRIMARY KEY,
-		"community_area" VARCHAR(255) UNIQUE,
-		"below_poverty_level" VARCHAR(255),
-		"unemployment" VARCHAR(255),
-		"per_capita_income" VARCHAR(255)
+	create_table := `CREATE TABLE IF NOT EXISTS "public_health" (
+		"community_area" VARCHAR(255) PRIMARY KEY,
+		"below_poverty_level" FLOAT8,
+		"unemployment" FLOAT8,
+		"per_capita_income" FLOAT8
 	);`
 
 	_, _err := db.Exec(create_table)
@@ -83,9 +82,9 @@ func GetUnemploymentRates(db *sql.DB) {
 		// Any record that has messy/dirty/missing data we don't enter it in the data lake/table
 
 		if record.Community_area == "" ||
-			record.Below_poverty_level == "" ||
-			record.Unemployment == "" ||
-			record.Per_capita_income == "" {
+			record.Below_poverty_level < 0 ||
+			record.Unemployment < 0 ||
+			record.Per_capita_income < 0 {
 			skippedCount++
 			continue
 		}
@@ -102,6 +101,6 @@ func GetUnemploymentRates(db *sql.DB) {
 		}
 		insertedCount++
 	}
-	fmt.Printf("Completed inserting %d rows into the unemployment table. Skipped %d records due to data quality issues.\n", insertedCount, skippedCount)
+	fmt.Printf("Completed inserting %d rows into the public_health table. Skipped %d records due to data quality issues.\n", insertedCount, skippedCount)
 
 }

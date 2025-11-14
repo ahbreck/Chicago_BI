@@ -86,7 +86,6 @@ func GetCCVIDetails(db *sql.DB) {
 
 		if record.Geography_type == "" ||
 			record.Community_area_or_zip == "" ||
-			//record.Community_area_name == "" ||
 			record.CCVI_score < 0 ||
 			record.CCVI_category == "" {
 			skippedCount++
