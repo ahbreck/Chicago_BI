@@ -107,9 +107,8 @@ func main() {
 		go collectors.GetUnemploymentRates(db) // could probably sleep for one year because this dataset does not change frequently
 		go collectors.GetBuildingPermits(db)
 		go collectors.GetTaxiTrips(db)
-
 		go collectors.GetCovidDetails(db)
-		// go GetCCVIDetails(db)
+		go collectors.GetCCVIDetails(db)
 
 		http.HandleFunc("/", handler)
 
