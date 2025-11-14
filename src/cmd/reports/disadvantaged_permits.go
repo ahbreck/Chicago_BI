@@ -59,7 +59,7 @@ func CreateDisadvantagedReport(db *sql.DB) error {
                         WHERE "community_area" IN (
                                 SELECT "community_area"
                                 FROM %s
-                                ORDER BY NULLIF(REGEXP_REPLACE("below_poverty_level", '[^0-9\\.]', '', 'g'), '')::DOUBLE PRECISION DESC NULLS LAST
+                                ORDER BY "below_poverty_level" DESC
                                 LIMIT 5
                         )`, targetIdent, targetIdent),
 		fmt.Sprintf(`UPDATE %s
@@ -67,7 +67,7 @@ func CreateDisadvantagedReport(db *sql.DB) error {
                         WHERE "community_area" IN (
                                 SELECT "community_area"
                                 FROM %s
-                                ORDER BY NULLIF(REGEXP_REPLACE("unemployment", '[^0-9\\.]', '', 'g'), '')::DOUBLE PRECISION DESC NULLS LAST
+                                ORDER BY "unemployment" DESC
                                 LIMIT 5
                         )`, targetIdent, targetIdent),
 		fmt.Sprintf(`UPDATE %s
