@@ -1,4 +1,4 @@
-package collectors
+package main
 
 import (
 	"fmt"

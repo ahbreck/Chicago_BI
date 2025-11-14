@@ -1,4 +1,4 @@
-package collectors
+package main
 
 import (
 	"database/sql"
@@ -12,7 +12,7 @@ import (
 	"github.com/ahbreck/Chicago_BI/shared"
 )
 
-type CCVIRecords []struct {
+type CCVIRecords_ []struct {
 	Geography_type        string  `json:"geography_type"`
 	Community_area_or_zip string  `json:"community_area_or_zip"`
 	Community_area_name   string  `json:"community_area_name"`
@@ -23,7 +23,7 @@ type CCVIRecords []struct {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func GetCCVIDetails(db *sql.DB) {
+func GetCCVIDetails_(db *sql.DB) {
 	fmt.Println("GetCCVIDetails: Collecting data on Chicago Community Vulnerability Index")
 
 	drop_table := `drop table if exists ccvi`
@@ -86,6 +86,7 @@ func GetCCVIDetails(db *sql.DB) {
 
 		if record.Geography_type == "" ||
 			record.Community_area_or_zip == "" ||
+			//record.Community_area_name == "" ||
 			record.CCVI_score < 0 ||
 			record.CCVI_category == "" {
 			skippedCount++
