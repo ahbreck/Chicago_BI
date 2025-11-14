@@ -42,11 +42,11 @@ func GetBuildingPermits(db *sql.DB) {
 		"id" VARCHAR(255) PRIMARY KEY,
 		"permit_id" VARCHAR(255) UNIQUE,
 		"permit_type" VARCHAR(255),
-		"issue_date"      VARCHAR(255),
+		"issue_date"      DATE,
 		"street_number"      VARCHAR(255),
 		"street_name"      VARCHAR(255),
-		"latitude"      DOUBLE PRECISION ,
-		"longitude"      DOUBLE PRECISION,
+		"latitude"      FLOAT8,
+		"longitude"      FLOAT8,
 		"community_area" VARCHAR(255),
 		"census_tract" VARCHAR(255)
 	);`

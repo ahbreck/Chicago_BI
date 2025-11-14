@@ -15,9 +15,9 @@ import (
 
 type UnemploymentJsonRecords []struct {
 	Community_area      string  `json:"community_area"`
-	Below_poverty_level float64 `json:"below_poverty_level"`
-	Unemployment        float64 `json:"unemployment"`
-	Per_capita_income   float64 `json:"per_capita_income"`
+	Below_poverty_level float64 `json:"below_poverty_level,string"`
+	Unemployment        float64 `json:"unemployment,string"`
+	Per_capita_income   float64 `json:"per_capita_income,string"`
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +44,7 @@ func GetUnemploymentRates(db *sql.DB) {
 		panic(_err)
 	}
 
-	fmt.Println("Created Table for Unemployment")
+	fmt.Println("Created Table for Public Health Data")
 
 	// There are 77 known community areas in the data set
 	// So, set limit to 100.
@@ -57,7 +57,7 @@ func GetUnemploymentRates(db *sql.DB) {
 	// adding the below statement to ensure closure in case of early return
 	defer res.Body.Close()
 
-	fmt.Println("Received data from SODA REST API for Unemployment")
+	fmt.Println("Received data from SODA REST API for Public Health")
 
 	body, _ := ioutil.ReadAll(res.Body)
 	var unemployment_data_list UnemploymentJsonRecords
@@ -66,7 +66,7 @@ func GetUnemploymentRates(db *sql.DB) {
 	s := fmt.Sprintf("\n\n Community Areas number of SODA records received = %d\n\n", len(unemployment_data_list))
 	io.WriteString(os.Stdout, s)
 
-	sql := `INSERT INTO unemployment ("community_area", "below_poverty_level", "unemployment", "per_capita_income")
+	sql := `INSERT INTO public_health ("community_area", "below_poverty_level", "unemployment", "per_capita_income")
 			VALUES ($1, $2, $3, $4)
 			ON CONFLICT ("community_area") DO UPDATE 
 			SET below_poverty_level = EXCLUDED.below_poverty_level,
