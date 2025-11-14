@@ -67,6 +67,18 @@ func init() {
 ///////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
 
+func handler(w http.ResponseWriter, r *http.Request) {
+	name := os.Getenv("PROJECT_ID")
+	if name == "" {
+		name = "CBI-Project"
+	}
+
+	fmt.Fprintf(w, "CBI data collection microservices' goroutines have started for %s!\n", name)
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
 func main() {
 
 	// Load environment variables first
@@ -130,98 +142,5 @@ func main() {
 		log.Print("Finished daily update, sleeping for 1 day...")
 		time.Sleep(24 * time.Hour)
 	}
-
-}
-
-///////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	name := os.Getenv("PROJECT_ID")
-	if name == "" {
-		name = "CBI-Project"
-	}
-
-	fmt.Fprintf(w, "CBI data collection microservices' goroutines have started for %s!\n", name)
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-//Sample dataset reviewed:
-//"zip_code":"60602",
-//"week_number":"35",
-//"week_start":"2021-08-29T00:00:00.000",
-//"week_end":"2021-09-04T00:00:00.000",
-//"cases_weekly":"2",
-//"cases_cumulative":"123",
-//"case_rate_weekly":"160.8",
-//"case_rate_cumulative":"9887.5",
-//"tests_weekly":"92",
-//"tests_cumulative":"3970",
-//"test_rate_weekly":"7395.5",
-//"test_rate_cumulative":"319131.8",
-//"percent_tested_positive_weekly":"0.022",
-//"percent_tested_positive_cumulative":"0.035",
-//"deaths_weekly":"0",
-//"deaths_cumulative":"2",
-//"death_rate_weekly":"0",
-//"death_rate_cumulative":"160.8",
-//"population":"1244",
-//"row_id":"60602-2021-35",
-//"zip_code_location":{"type":"Point",
-//						"coordinates":
-//							0 -87.628309
-//							1  41.883136
-//":@computed_region_rpca_8um6":"41",
-//":@computed_region_vrxf_vc4k":"38",
-//":@computed_region_6mkv_f3dw":"14310",
-//":@computed_region_bdys_3d7i":"92",
-//":@computed_region_43wa_7qmu":"36"
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-
-func GetCovidDetails(db *sql.DB) {
-
-	fmt.Println("ADD-YOUR-CODE-HERE - To Implement GetCovidDetails")
-
-}
-
-// //////////////////////////////////////////////////////////////////////////////////
-// //////////////////////////////////////////////////////////////////////////////////
-// Sample dataset reviewed:
-// "geography_type":"CA",
-// "community_area_or_zip":"70",
-// "community_area_name":"Ashburn",
-// "ccvi_score":"45.1",
-// "ccvi_category":"MEDIUM",
-// "rank_socioeconomic_status":"34",
-// "rank_household_composition":"32",
-// "rank_adults_no_pcp":"28",
-// "rank_cumulative_mobility_ratio":"45",
-// "rank_frontline_essential_workers":"48",
-// "rank_age_65_plus":"29",
-// "rank_comorbid_conditions":"33",
-// "rank_covid_19_incidence_rate":"59",
-// "rank_covid_19_hospital_admission_rate":"66",
-// "rank_covid_19_crude_mortality_rate":"39",
-// "location":{"type":"Point",
-//
-//	"coordinates":
-//			0	-87.7083657043
-//			1	41.7457577128
-//
-// ":@computed_region_rpca_8um6":"8",
-// ":@computed_region_vrxf_vc4k":"69",
-// ":@computed_region_6mkv_f3dw":"4300",
-// ":@computed_region_bdys_3d7i":"199",
-// ":@computed_region_43wa_7qmu":"30"
-// //////////////////////////////////////////////////////////////////////////////////
-// //////////////////////////////////////////////////////////////////////////////////
-func GetCCVIDetails(db *sql.DB) {
-
-	fmt.Println("ADD-YOUR-CODE-HERE - To Implement GetCCVIDetails")
 
 }
