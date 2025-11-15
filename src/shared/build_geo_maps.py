@@ -1,12 +1,13 @@
 """Utilities for building geography translation maps.
 
-Currently supports deriving a mapping from census tracts to the ZIP code
-containing the largest share of each tract's area.  The implementation avoids
-geospatial dependencies (e.g., shapely/geopandas) so that the repository can be
-used in restricted environments.  Instead, it performs a fine grid sampling of
-each tract, weights the samples by the cosine of the latitude to approximate an
-equal-area projection, and assigns each sample to the ZIP polygon that contains
-it.  The ZIP with the greatest weighted share is selected for each tract.
+Currently supports deriving a mapping from one geography to the geography that
+contains the largest share of its area.  The implementation avoids geospatial
+dependencies (e.g., shapely/geopandas) so that the repository can be used in
+restricted environments.  Instead, it performs a fine grid sampling of each
+source geometry, weights the samples by the cosine of the latitude to
+approximate an equal-area projection, and assigns each sample to the target
+polygon that contains it.  The target geography with the greatest weighted
+share is selected for each source feature.
 
 This module intentionally trades a small amount of precision for portability.
 The sampling resolution is high enough to provide stable results for the
@@ -249,49 +250,49 @@ def load_features(path: Path, identifier_field: str) -> List[SpatialFeature]:
     return features
 
 
-def build_census_tract_to_zip_map(
-    tracts: List[SpatialFeature], zips: List[SpatialFeature]
+def build_dominant_geography_map(
+    sources: List[SpatialFeature], targets: List[SpatialFeature]
 ) -> List[Tuple[str, Optional[str]]]:
     mapping: List[Tuple[str, Optional[str]]] = []
-    zip_bboxes = [zip_feat.bbox for zip_feat in zips]
+    target_bboxes = [target_feat.bbox for target_feat in targets]
 
-    for tract in tracts:
-        tract_bbox = tract.bbox
+    for source in sources:
+        source_bbox = source.bbox
         candidate_indices = [
-            idx for idx, bbox in enumerate(zip_bboxes) if _bbox_overlaps(tract_bbox, bbox)
+            idx for idx, bbox in enumerate(target_bboxes) if _bbox_overlaps(source_bbox, bbox)
         ]
-        candidate_zips = [zips[idx] for idx in candidate_indices]
+        candidate_targets = [targets[idx] for idx in candidate_indices]
 
         counts: dict[str, float] = {}
-        for point in _sample_points_within(tract):
+        for point in _sample_points_within(source):
             weight = math.cos(math.radians(point[1]))
             assigned: Optional[str] = None
-            for zip_feature in candidate_zips:
-                if zip_feature.contains(point):
-                    assigned = zip_feature.identifier
+            for target_feature in candidate_targets:
+                if target_feature.contains(point):
+                    assigned = target_feature.identifier
                     break
             if assigned is not None:
                 counts[assigned] = counts.get(assigned, 0.0) + weight
-        selected_zip: Optional[str]
+        selected_target: Optional[str]
         if counts:
-            selected_zip = max(counts.items(), key=lambda kv: (kv[1], kv[0]))[0]
+            selected_target = max(counts.items(), key=lambda kv: (kv[1], kv[0]))[0]
         else:
-            centroid = tract.centroid()
-            selected_zip = None
-            for zip_feature in candidate_zips:
-                if zip_feature.contains(centroid):
-                    selected_zip = zip_feature.identifier
+            centroid = source.centroid()
+            selected_target = None
+            for target_feature in candidate_targets:
+                if target_feature.contains(centroid):
+                    selected_target = target_feature.identifier
                     break
-            if selected_zip is None and candidate_zips:
+            if selected_target is None and candidate_targets:
                 cx, cy = centroid
                 best_dist = float("inf")
-                for zip_feature in candidate_zips:
-                    zx, zy = zip_feature.centroid()
-                    dist = (zx - cx) ** 2 + (zy - cy) ** 2
+                for target_feature in candidate_targets:
+                    tx, ty = target_feature.centroid()
+                    dist = (tx - cx) ** 2 + (ty - cy) ** 2
                     if dist < best_dist:
                         best_dist = dist
-                        selected_zip = zip_feature.identifier
-        mapping.append((tract.identifier, selected_zip))
+                        selected_target = target_feature.identifier
+        mapping.append((source.identifier, selected_target))
     return mapping
 
 
@@ -306,14 +307,45 @@ def write_mapping_csv(
             writer.writerow([key, value if value is not None else ""])
 
 
+def _find_project_root(start: Path) -> Path:
+    """Return the project root containing ``src/data/spatial``."""
+
+    for candidate in [start, *start.parents]:
+        spatial_dir = candidate / "src" / "data" / "spatial"
+        if spatial_dir.exists():
+            return candidate
+    raise FileNotFoundError(
+        "Could not locate the project root containing 'src/data/spatial'."
+    )
+
+
 def main() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    spatial_dir = repo_root / "data" / "spatial"
+    repo_root = _find_project_root(Path(__file__).resolve().parent)
+    spatial_dir = repo_root / "src" / "data" / "spatial"
     tracts = load_features(spatial_dir / "census_tracts.geojson", "census_t_1")
     zips = load_features(spatial_dir / "zip_codes.geojson", "zip")
-    mapping = build_census_tract_to_zip_map(tracts, zips)
-    output_path = repo_root / "data" / "census_tract_to_zip_code.csv"
-    write_mapping_csv(mapping, output_path, header=("census_tract", "zip_code"))
+    communities = load_features(spatial_dir / "community_areas.geojson", "community")
+
+    tract_to_zip = build_dominant_geography_map(tracts, zips)
+    write_mapping_csv(
+        tract_to_zip,
+        repo_root / "src" / "data" / "census_tract_to_zip_code.csv",
+        header=("census_tract", "zip_code"),
+    )
+
+    zip_to_community = build_dominant_geography_map(zips, communities)
+    write_mapping_csv(
+        zip_to_community,
+        repo_root / "src" / "data" / "zip_code_to_community_area.csv",
+        header=("zip_code", "community_area"),
+    )
+
+    community_to_zip = build_dominant_geography_map(communities, zips)
+    write_mapping_csv(
+        community_to_zip,
+        repo_root / "src" / "data" / "community_area_to_zip_code.csv",
+        header=("community_area", "zip_code"),
+    )
 
 
 if __name__ == "__main__":
