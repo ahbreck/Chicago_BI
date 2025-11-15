@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	disadvantagedTable = "disadvantaged"
-	unemploymentTable  = "unemployment"
-	buildingPermits    = "building_permits"
-	ccviTable          = "ccvi"
-	covidTable         = "covid"
-	taxiTripsTable     = "taxi_trips"
+	disadvantagedTable        = "disadvantaged"
+	unemploymentTable         = "unemployment"
+	buildingPermits           = "building_permits"
+	disadvantagedPermitsTable = "report_7_disadv_perm"
+	ccviTable                 = "ccvi"
+	covidTable                = "covid"
+	taxiTripsTable            = "taxi_trips"
 )
 
 // SourceTables lists all base datasets produced by collectors that reports may depend on.
@@ -46,8 +47,21 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 
 	targetIdent := quoteIdentifier(disadvantagedTable)
 	baseIdent := quoteIdentifier(unemploymentTable)
+	buildingPermitsIdent := quoteIdentifier(buildingPermits)
+	disadvantagedPermitsIdent := quoteIdentifier(disadvantagedPermitsTable)
+
+	if err := ensurePostGISEnabled(tx); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	statements := []string{
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, disadvantagedPermitsIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, disadvantagedPermitsIdent, buildingPermitsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN point geometry(Point, 4326)`, disadvantagedPermitsIdent),
+		fmt.Sprintf(`UPDATE %s
+		SET point = ST_SetSRID(ST_MakePoint("longitude", "latitude"), 4326)
+		WHERE "longitude" IS NOT NULL AND "latitude" IS NOT NULL`, disadvantagedPermitsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, targetIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, targetIdent, baseIdent),
 		fmt.Sprintf(`ALTER TABLE %s
@@ -84,6 +98,28 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 	if err := tx.Commit(); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to commit disadvantaged report transaction: %w", err)
+	}
+
+	return nil
+}
+
+func ensurePostGISEnabled(tx *sql.Tx) error {
+	if tx == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
+	const availabilityQuery = `SELECT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'postgis')`
+	var available bool
+	if err := tx.QueryRow(availabilityQuery).Scan(&available); err != nil {
+		return fmt.Errorf("failed to check for postgis extension: %w", err)
+	}
+
+	if !available {
+		return fmt.Errorf("postgis extension is not available on this database instance; please install it before generating the disadvantaged report")
+	}
+
+	if _, err := tx.Exec(`CREATE EXTENSION IF NOT EXISTS postgis`); err != nil {
+		return fmt.Errorf("failed to enable postgis extension: %w", err)
 	}
 
 	return nil
