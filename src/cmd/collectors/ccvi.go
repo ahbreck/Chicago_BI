@@ -16,7 +16,7 @@ type CCVIRecords []struct {
 	Geography_type        string  `json:"geography_type"`
 	Community_area_or_zip string  `json:"community_area_or_zip"`
 	Community_area_name   string  `json:"community_area_name"`
-	CCVI_score            float64 `json:"ccvi_score"`
+	CCVI_score            float64 `json:"ccvi_score,string"`
 	CCVI_category         string  `json:"ccvi_category"`
 }
 

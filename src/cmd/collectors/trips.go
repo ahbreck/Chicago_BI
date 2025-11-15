@@ -51,8 +51,8 @@ func GetTaxiTrips(db *sql.DB) {
 						"pickup_centroid_longitude" DOUBLE PRECISION, 
 						"dropoff_centroid_latitude" DOUBLE PRECISION, 
 						"dropoff_centroid_longitude" DOUBLE PRECISION, 
-						"pickup_zip_code" VARCHAR(255), 
-						"dropoff_zip_code" VARCHAR(255), 
+						"pickup_zip_code" VARCHAR(9), 
+						"dropoff_zip_code" VARCHAR(9), 
 						"trip_type" VARCHAR(50),
 						PRIMARY KEY ("id") 
 					);`

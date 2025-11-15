@@ -33,6 +33,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	log.Print("ensuring spatial datasets are available")
+	if _, err := shared.EnsureSpatialDatasets(ctx, shared.DefaultSpatialDatasets...); err != nil {
+		log.Fatalf("failed to prepare spatial datasets: %v", err)
+	}
+
 	log.Print("waiting for source datasets before starting report refresh loop")
 	if err := WaitForTablesReady(ctx, db, time.Minute, SourceTables...); err != nil {
 		log.Fatalf("failed to verify disadvantaged report dependencies: %v", err)
