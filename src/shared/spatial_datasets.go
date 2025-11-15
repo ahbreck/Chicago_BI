@@ -21,9 +21,19 @@ type SpatialDataset struct {
 // DefaultSpatialDatasets enumerates the spatial files required by reporting workflows.
 var DefaultSpatialDatasets = []SpatialDataset{
 	{
-		Name:     "neighborhoods",
+		Name:     "community_areas",
 		URL:      "https://data.cityofchicago.org/resource/igwz-8jzy.geojson",
-		FileName: "neighborhoods.geojson",
+		FileName: "community_areas.geojson",
+	},
+	{
+		Name:     "zip_codes",
+		URL:      "https://data.cityofchicago.org/resource/unjd-c2ca.geojson",
+		FileName: "zip_codes.geojson",
+	},
+	{
+		Name:     "census_tracts",
+		URL:      "https://data.cityofchicago.org/resource/4hp8-2i8z.geojson",
+		FileName: "census_tracts.geojson",
 	},
 }
 
