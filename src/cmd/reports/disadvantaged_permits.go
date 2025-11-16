@@ -10,7 +10,7 @@ import (
 
 const (
 	disadvantagedTable        = "disadvantaged"
-	unemploymentTable         = "unemployment"
+	publichealthTable         = "public_health"
 	buildingPermits           = "building_permits"
 	disadvantagedPermitsTable = "report_7_disadv_perm"
 	ccviTable                 = "ccvi"
@@ -23,7 +23,7 @@ var SourceTables = []string{
 	buildingPermits,
 	ccviTable,
 	covidTable,
-	unemploymentTable,
+	publichealthTable,
 	taxiTripsTable,
 }
 
@@ -32,7 +32,7 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 		return fmt.Errorf("db connection is nil")
 	}
 
-	if err := ensureTableReady(db, unemploymentTable); err != nil {
+	if err := ensureTableReady(db, publichealthTable); err != nil {
 		return err
 	}
 
@@ -46,7 +46,7 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 	}
 
 	targetIdent := quoteIdentifier(disadvantagedTable)
-	baseIdent := quoteIdentifier(unemploymentTable)
+	baseIdent := quoteIdentifier(publichealthTable)
 	buildingPermitsIdent := quoteIdentifier(buildingPermits)
 	disadvantagedPermitsIdent := quoteIdentifier(disadvantagedPermitsTable)
 
