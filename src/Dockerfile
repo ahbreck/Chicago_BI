@@ -14,6 +14,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/reports ./cmd/reports
 
 FROM debian:bookworm-slim AS runner
+ARG SPATIAL_DATA_DIR=/app/data/spatial
+ARG PORT=8080
+ARG PROJECT_ID=Chicago-BI
 RUN useradd --create-home --uid 1000 appuser \
     && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates tzdata \
@@ -25,9 +28,9 @@ COPY data ./src/data
 COPY .env .env
 RUN mkdir -p data/spatial && chown -R appuser:appuser /app
 USER appuser
-ENV PORT=8080 \
-    PROJECT_ID=Chicago-BI \
-    SPATIAL_DATA_DIR=/app/data/spatial
+ENV PORT=${PORT} \
+    PROJECT_ID=${PROJECT_ID} \
+    SPATIAL_DATA_DIR=${SPATIAL_DATA_DIR}
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/collectors"]
 CMD []
