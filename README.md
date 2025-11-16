@@ -99,6 +99,29 @@ originate from this single Docker-specific source. Override any of the
 variables by editing that file or defining them inline when calling
 `docker compose -f src/docker/compose.yaml ...`.
 
+### Environment files and examples
+
+The tracked example files show the required keys while keeping real secrets
+out of Git:
+
+- Use `src/docker/.env.docker.example` as the template for Docker runs. Copy it
+  to `src/docker/.env.docker` and fill in your values:
+
+  ```bash
+  cp src/docker/.env.docker.example src/docker/.env.docker
+  ```
+
+- Use `src/.env.example` as the template for running the Go services directly
+  on your machine. Copy it to `src/.env` and update the values:
+
+  ```bash
+  cp src/.env.example src/.env
+  ```
+
+Both `src/docker/.env.docker` and `src/.env` are listed in `.gitignore` so your
+local secrets stay private, while the example files remain in version control
+for reference.
+
 | Variable            | Description                                                                      |
 |---------------------|----------------------------------------------------------------------------------|
 | `PROJECT_ID`        | Human-friendly name printed by the collectors HTTP endpoint.                     |
