@@ -46,20 +46,20 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			END`, targetIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, alertsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, alertsIdent, tripsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN week_start DATE`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s SET week_start = DATE_TRUNC('week', "trip_start_timestamp")::date`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN pickup_covid_cat VARCHAR(6)`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN dropoff_covid_cat VARCHAR(6)`, alertsIdent),
 		fmt.Sprintf(`UPDATE %s t
 			SET pickup_covid_cat = c.covid_cat
 			FROM %s c
 			WHERE t."pickup_zip_code" = c."zip_code"
-				AND t."trip_start_timestamp" >= c."week_start"
-				AND t."trip_start_timestamp" <= c."week_end"`, alertsIdent, targetIdent),
+				AND t."week_start" = c."week_start"`, alertsIdent, targetIdent),
 		fmt.Sprintf(`UPDATE %s t
 			SET dropoff_covid_cat = c.covid_cat
 			FROM %s c
 			WHERE t."dropoff_zip_code" = c."zip_code"
-				AND t."trip_start_timestamp" >= c."week_start"
-				AND t."trip_start_timestamp" <= c."week_end"`, alertsIdent, targetIdent),
+				AND t."week_start" = c."week_start"`, alertsIdent, targetIdent),
 	}
 
 	for _, stmt := range statements {
