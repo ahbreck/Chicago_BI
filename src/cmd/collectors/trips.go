@@ -29,89 +29,6 @@ type TripRecord struct {
 	Dropoff_centroid_longitude string `json:"dropoff_centroid_longitude"`
 }
 
-// findZipCodeDataPath walks up from the current working directory until it finds the zip code CSV.
-func findZipCodeDataPath() (string, error) {
-	relPath := filepath.Join("src", "data", "zip_code_to_community_area.csv")
-
-	seen := map[string]struct{}{}
-	searchFrom := func(start string) (string, bool) {
-		if start == "" {
-			return "", false
-		}
-		if _, ok := seen[start]; ok {
-			return "", false
-		}
-		seen[start] = struct{}{}
-
-		dir := start
-		for {
-			candidate := filepath.Join(dir, relPath)
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-				return candidate, true
-			}
-
-			parent := filepath.Dir(dir)
-			if parent == dir {
-				break
-			}
-			dir = parent
-		}
-
-		return "", false
-	}
-
-	if cwd, err := os.Getwd(); err == nil {
-		if path, ok := searchFrom(cwd); ok {
-			return path, nil
-		}
-	}
-
-	if exe, err := os.Executable(); err == nil {
-		if path, ok := searchFrom(filepath.Dir(exe)); ok {
-			return path, nil
-		}
-	}
-
-	return "", fmt.Errorf("could not locate %s", relPath)
-}
-
-// loadZipCodeOptions reads the zip codes from the crosswalk CSV and returns the list of possible values.
-func loadZipCodeOptions() ([]string, error) {
-	csvPath, err := findZipCodeDataPath()
-	if err != nil {
-		return nil, err
-	}
-
-	file, err := os.Open(csvPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open zip code file: %w", err)
-	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read zip code file: %w", err)
-	}
-
-	var zips []string
-	for i, row := range records {
-		if len(row) == 0 {
-			continue
-		}
-		if i == 0 && row[0] == "zip_code" {
-			continue
-		}
-		zips = append(zips, row[0])
-	}
-
-	if len(zips) == 0 {
-		return nil, fmt.Errorf("no zip codes found in %s", csvPath)
-	}
-
-	return zips, nil
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
 
@@ -281,4 +198,87 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 	}
 	fmt.Printf("Finished inserting %d %s trips (%d skipped).\n", insertedCount, tripType, skippedCount)
 
+}
+
+// findZipCodeDataPath walks up from the current working directory until it finds the zip code CSV.
+func findZipCodeDataPath() (string, error) {
+	relPath := filepath.Join("src", "data", "zip_code_to_community_area.csv")
+
+	seen := map[string]struct{}{}
+	searchFrom := func(start string) (string, bool) {
+		if start == "" {
+			return "", false
+		}
+		if _, ok := seen[start]; ok {
+			return "", false
+		}
+		seen[start] = struct{}{}
+
+		dir := start
+		for {
+			candidate := filepath.Join(dir, relPath)
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				return candidate, true
+			}
+
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+
+		return "", false
+	}
+
+	if cwd, err := os.Getwd(); err == nil {
+		if path, ok := searchFrom(cwd); ok {
+			return path, nil
+		}
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		if path, ok := searchFrom(filepath.Dir(exe)); ok {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not locate %s", relPath)
+}
+
+// loadZipCodeOptions reads the zip codes from the crosswalk CSV and returns the list of possible values.
+func loadZipCodeOptions() ([]string, error) {
+	csvPath, err := findZipCodeDataPath()
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(csvPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open zip code file: %w", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read zip code file: %w", err)
+	}
+
+	var zips []string
+	for i, row := range records {
+		if len(row) == 0 {
+			continue
+		}
+		if i == 0 && row[0] == "zip_code" {
+			continue
+		}
+		zips = append(zips, row[0])
+	}
+
+	if len(zips) == 0 {
+		return nil, fmt.Errorf("no zip codes found in %s", csvPath)
+	}
+
+	return zips, nil
 }
