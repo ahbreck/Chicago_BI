@@ -324,7 +324,7 @@ def main() -> None:
     spatial_dir = repo_root / "src" / "data" / "spatial"
     tracts = load_features(spatial_dir / "census_tracts.geojson", "census_t_1")
     zips = load_features(spatial_dir / "zip_codes.geojson", "zip")
-    communities = load_features(spatial_dir / "community_areas.geojson", "community")
+    communities = load_features(spatial_dir / "community_areas.geojson", "area_numbe")
 
     tract_to_zip = build_dominant_geography_map(tracts, zips)
     write_mapping_csv(
