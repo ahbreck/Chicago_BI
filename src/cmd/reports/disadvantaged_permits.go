@@ -20,6 +20,7 @@ const (
 	publichealthTable         = "public_health"
 	buildingPermits           = "building_permits"
 	disadvantagedPermitsTable = "report_7_disadv_perm"
+	loanEligibilityPermits    = "report_8_loan_elig_permits"
 	ccviTable                 = "ccvi"
 	covidTable                = "covid"
 	taxiTripsTable            = "taxi_trips"
@@ -61,6 +62,7 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 	baseIdent := quoteIdentifier(publichealthTable)
 	buildingPermitsIdent := quoteIdentifier(buildingPermits)
 	disadvantagedPermitsIdent := quoteIdentifier(disadvantagedPermitsTable)
+	loanEligibilityPermitsIdent := quoteIdentifier(loanEligibilityPermits)
 
 	if err := ensurePostGISEnabled(tx); err != nil {
 		tx.Rollback()
@@ -130,6 +132,11 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 		return fmt.Errorf("failed to populate zip codes: %w", err)
 	}
 
+	if err := createLoanEligibilityPermits(tx, disadvantagedPermitsIdent, targetIdent, loanEligibilityPermitsIdent); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to build loan eligibility report: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to commit disadvantaged report transaction: %w", err)
@@ -170,6 +177,53 @@ WHERE d."community_area"::text = mapping.community_area`, tableIdent, strings.Jo
 
 	if _, err := tx.Exec(updateStmt); err != nil {
 		return fmt.Errorf("failed to populate disadvantaged zip codes from community area mapping: %w", err)
+	}
+
+	return nil
+}
+
+func createLoanEligibilityPermits(tx *sql.Tx, sourcePermitsIdent, disadvantagedIdent, loanEligIdent string) error {
+	if tx == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
+	statements := []string{
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, loanEligIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, loanEligIdent, sourcePermitsIdent),
+		fmt.Sprintf(`DELETE FROM %s WHERE "permit_type" IS NULL OR "permit_type" <> 'PERMIT - NEW CONSTRUCTION'`, loanEligIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN per_capita_income NUMERIC`, loanEligIdent),
+		fmt.Sprintf(`UPDATE %s lp
+SET per_capita_income = d.per_capita_income
+FROM %s d
+WHERE lp."zip_code" <> '' AND lp."zip_code" = d."zip_code"`, loanEligIdent, disadvantagedIdent),
+		fmt.Sprintf(`DELETE FROM %s WHERE per_capita_income IS NULL OR per_capita_income >= 30000`, loanEligIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN total_permits_for_zip INTEGER DEFAULT 0`, loanEligIdent),
+		fmt.Sprintf(`UPDATE %s lp
+SET total_permits_for_zip = counts.permit_count
+FROM (
+	SELECT "zip_code", COUNT(*) AS permit_count
+	FROM %s
+	WHERE "zip_code" <> ''
+	GROUP BY "zip_code"
+) counts
+WHERE lp."zip_code" = counts."zip_code"`, loanEligIdent, loanEligIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN loan_eligibility BOOLEAN DEFAULT FALSE`, loanEligIdent),
+		fmt.Sprintf(`UPDATE %s
+SET loan_eligibility = TRUE
+WHERE "zip_code" IN (
+	SELECT "zip_code"
+	FROM %s
+	WHERE "zip_code" <> ''
+	GROUP BY "zip_code"
+	ORDER BY COUNT(*) ASC
+	LIMIT 1
+)`, loanEligIdent, loanEligIdent),
+	}
+
+	for _, statement := range statements {
+		if _, err := tx.Exec(statement); err != nil {
+			return fmt.Errorf("failed to execute statement %q: %w", statement, err)
+		}
 	}
 
 	return nil
