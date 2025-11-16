@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
+	"math/rand"
 
 	"github.com/kelvins/geocoder"
 	_ "github.com/lib/pq"
@@ -24,6 +27,89 @@ type TripRecord struct {
 	Pickup_centroid_longitude  string `json:"pickup_centroid_longitude"`
 	Dropoff_centroid_latitude  string `json:"dropoff_centroid_latitude"`
 	Dropoff_centroid_longitude string `json:"dropoff_centroid_longitude"`
+}
+
+// findZipCodeDataPath walks up from the current working directory until it finds the zip code CSV.
+func findZipCodeDataPath() (string, error) {
+	relPath := filepath.Join("src", "data", "zip_code_to_community_area.csv")
+
+	seen := map[string]struct{}{}
+	searchFrom := func(start string) (string, bool) {
+		if start == "" {
+			return "", false
+		}
+		if _, ok := seen[start]; ok {
+			return "", false
+		}
+		seen[start] = struct{}{}
+
+		dir := start
+		for {
+			candidate := filepath.Join(dir, relPath)
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				return candidate, true
+			}
+
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+
+		return "", false
+	}
+
+	if cwd, err := os.Getwd(); err == nil {
+		if path, ok := searchFrom(cwd); ok {
+			return path, nil
+		}
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		if path, ok := searchFrom(filepath.Dir(exe)); ok {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not locate %s", relPath)
+}
+
+// loadZipCodeOptions reads the zip codes from the crosswalk CSV and returns the list of possible values.
+func loadZipCodeOptions() ([]string, error) {
+	csvPath, err := findZipCodeDataPath()
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(csvPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open zip code file: %w", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read zip code file: %w", err)
+	}
+
+	var zips []string
+	for i, row := range records {
+		if len(row) == 0 {
+			continue
+		}
+		if i == 0 && row[0] == "zip_code" {
+			continue
+		}
+		zips = append(zips, row[0])
+	}
+
+	if len(zips) == 0 {
+		return nil, fmt.Errorf("no zip codes found in %s", csvPath)
+	}
+
+	return zips, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +187,17 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 
 	insertedCount := 0
 	skippedCount := 0
+	var zipOptions []string
+
+	if !useGeocoding {
+		var err error
+		zipOptions, err = loadZipCodeOptions()
+		if err != nil {
+			fmt.Printf("Unable to load ZIP code options, defaulting to empty values: %v\n", err)
+		}
+	}
+
+	randomZipPicker := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	for _, record := range taxi_trips_list {
 
@@ -153,6 +250,9 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 			if len(dropoff_address_list) > 0 {
 				dropoff_zip_code = dropoff_address_list[0].PostalCode
 			}
+		} else if len(zipOptions) > 0 {
+			pickup_zip_code = zipOptions[randomZipPicker.Intn(len(zipOptions))]
+			dropoff_zip_code = zipOptions[randomZipPicker.Intn(len(zipOptions))]
 		}
 
 		sql := `INSERT INTO taxi_trips ("trip_id", "trip_start_timestamp", "trip_end_timestamp", "pickup_centroid_latitude", "pickup_centroid_longitude", "dropoff_centroid_latitude", "dropoff_centroid_longitude", "pickup_zip_code", 
