@@ -149,13 +149,13 @@ func populatePermitZipCodes(tx *sql.Tx, tableIdent string, useGeocoding bool) er
 	}
 	defer rows.Close()
 
-	updateStmtSQL := fmt.Sprintf(`UPDATE %s SET zip_code = $1 WHERE "id" = $2`, tableIdent)
-	updateStmt, prepErr := tx.Prepare(updateStmtSQL)
-	if prepErr != nil {
-		return fmt.Errorf("failed to prepare zip code update statement: %w", prepErr)
+	type permitLocation struct {
+		id        string
+		latitude  float64
+		longitude float64
 	}
-	defer updateStmt.Close()
 
+	var permits []permitLocation
 	for rows.Next() {
 		var (
 			id        string
@@ -171,14 +171,33 @@ func populatePermitZipCodes(tx *sql.Tx, tableIdent string, useGeocoding bool) er
 			continue
 		}
 
+		permits = append(permits, permitLocation{
+			id:        id,
+			latitude:  latitude.Float64,
+			longitude: longitude.Float64,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error while reading permit rows: %w", err)
+	}
+
+	updateStmtSQL := fmt.Sprintf(`UPDATE %s SET zip_code = $1 WHERE "id" = $2`, tableIdent)
+	updateStmt, prepErr := tx.Prepare(updateStmtSQL)
+	if prepErr != nil {
+		return fmt.Errorf("failed to prepare zip code update statement: %w", prepErr)
+	}
+	defer updateStmt.Close()
+
+	for _, permit := range permits {
 		location := geocoder.Location{
-			Latitude:  latitude.Float64,
-			Longitude: longitude.Float64,
+			Latitude:  permit.latitude,
+			Longitude: permit.longitude,
 		}
 
 		addresses, geoErr := geocoder.GeocodingReverse(location)
 		if geoErr != nil {
-			fmt.Printf("failed to reverse geocode permit %s: %v\n", id, geoErr)
+			fmt.Printf("failed to reverse geocode permit %s: %v\n", permit.id, geoErr)
 			continue
 		}
 
@@ -187,14 +206,10 @@ func populatePermitZipCodes(tx *sql.Tx, tableIdent string, useGeocoding bool) er
 			zipCode = addresses[0].PostalCode
 		}
 
-		if _, updateErr := updateStmt.Exec(zipCode, id); updateErr != nil {
-			fmt.Printf("failed to update zip code for permit %s: %v\n", id, updateErr)
+		if _, updateErr := updateStmt.Exec(zipCode, permit.id); updateErr != nil {
+			fmt.Printf("failed to update zip code for permit %s: %v\n", permit.id, updateErr)
 			continue
 		}
-	}
-
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error while iterating permit rows: %w", err)
 	}
 
 	return nil
