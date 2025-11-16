@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
+
+	"github.com/kelvins/geocoder"
 )
 
 const (
@@ -30,6 +33,11 @@ var SourceTables = []string{
 func CreateDisadvantagedReport(db *sql.DB) error {
 	if db == nil {
 		return fmt.Errorf("db connection is nil")
+	}
+
+	useGeocoding := os.Getenv("USE_GEOCODING") == "true"
+	if useGeocoding {
+		geocoder.ApiKey = os.Getenv("API_KEY")
 	}
 
 	if err := ensureTableReady(db, publichealthTable); err != nil {
@@ -59,6 +67,7 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, disadvantagedPermitsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, disadvantagedPermitsIdent, buildingPermitsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN point geometry(Point, 4326)`, disadvantagedPermitsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN zip_code VARCHAR(9) DEFAULT ''`, disadvantagedPermitsIdent),
 		fmt.Sprintf(`UPDATE %s
 		SET point = ST_SetSRID(ST_MakePoint("longitude", "latitude"), 4326)
 		WHERE "longitude" IS NOT NULL AND "latitude" IS NOT NULL`, disadvantagedPermitsIdent),
@@ -106,9 +115,78 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 		}
 	}
 
+	if err := populatePermitZipCodes(tx, disadvantagedPermitsIdent, useGeocoding); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to populate zip codes: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to commit disadvantaged report transaction: %w", err)
+	}
+
+	return nil
+}
+
+func populatePermitZipCodes(tx *sql.Tx, tableIdent string, useGeocoding bool) error {
+	if tx == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
+	clearStmt := fmt.Sprintf(`UPDATE %s SET zip_code = ''`, tableIdent)
+	if _, err := tx.Exec(clearStmt); err != nil {
+		return fmt.Errorf("failed to initialize zip codes: %w", err)
+	}
+
+	if !useGeocoding {
+		return nil
+	}
+
+	rows, err := tx.Query(fmt.Sprintf(`SELECT "id", "latitude", "longitude" FROM %s WHERE "latitude" IS NOT NULL AND "longitude" IS NOT NULL`, tableIdent))
+	if err != nil {
+		return fmt.Errorf("failed to fetch permits for geocoding: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			id        string
+			latitude  sql.NullFloat64
+			longitude sql.NullFloat64
+		)
+
+		if scanErr := rows.Scan(&id, &latitude, &longitude); scanErr != nil {
+			return fmt.Errorf("failed to scan permit coordinates: %w", scanErr)
+		}
+
+		if !latitude.Valid || !longitude.Valid {
+			continue
+		}
+
+		location := geocoder.Location{
+			Latitude:  latitude.Float64,
+			Longitude: longitude.Float64,
+		}
+
+		addresses, geoErr := geocoder.GeocodingReverse(location)
+		if geoErr != nil {
+			fmt.Printf("failed to reverse geocode permit %s: %v\n", id, geoErr)
+			continue
+		}
+
+		zipCode := ""
+		if len(addresses) > 0 {
+			zipCode = addresses[0].PostalCode
+		}
+
+		updateStmt := fmt.Sprintf(`UPDATE %s SET zip_code = $1 WHERE "id" = $2`, tableIdent)
+		if _, updateErr := tx.Exec(updateStmt, zipCode, id); updateErr != nil {
+			return fmt.Errorf("failed to update zip code for permit %s: %w", id, updateErr)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error while iterating permit rows: %w", err)
 	}
 
 	return nil
