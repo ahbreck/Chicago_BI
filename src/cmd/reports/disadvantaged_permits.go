@@ -148,6 +148,13 @@ func populatePermitZipCodes(tx *sql.Tx, tableIdent string, useGeocoding bool) er
 	}
 	defer rows.Close()
 
+	updateStmtSQL := fmt.Sprintf(`UPDATE %s SET zip_code = $1 WHERE "id" = $2`, tableIdent)
+	updateStmt, prepErr := tx.Prepare(updateStmtSQL)
+	if prepErr != nil {
+		return fmt.Errorf("failed to prepare zip code update statement: %w", prepErr)
+	}
+	defer updateStmt.Close()
+
 	for rows.Next() {
 		var (
 			id        string
@@ -179,9 +186,9 @@ func populatePermitZipCodes(tx *sql.Tx, tableIdent string, useGeocoding bool) er
 			zipCode = addresses[0].PostalCode
 		}
 
-		updateStmt := fmt.Sprintf(`UPDATE %s SET zip_code = $1 WHERE "id" = $2`, tableIdent)
-		if _, updateErr := tx.Exec(updateStmt, zipCode, id); updateErr != nil {
-			return fmt.Errorf("failed to update zip code for permit %s: %w", id, updateErr)
+		if _, updateErr := updateStmt.Exec(zipCode, id); updateErr != nil {
+			fmt.Printf("failed to update zip code for permit %s: %v\n", id, updateErr)
+			continue
 		}
 	}
 
