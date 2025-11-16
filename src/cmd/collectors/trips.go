@@ -68,8 +68,8 @@ func GetTaxiTrips(db *sql.DB) {
 	start := time.Now()
 
 	// Just running sequentially works better in this case rather than using goroutines.
-	GetTrips(db, "taxi", "wrvz-psew", 1, useGeocoding)
-	GetTrips(db, "tnp", "m6dm-c72p", 1, useGeocoding)
+	GetTrips(db, "taxi", "wrvz-psew", 20, useGeocoding)
+	GetTrips(db, "tnp", "m6dm-c72p", 20, useGeocoding)
 	duration := time.Since(start)
 	fmt.Printf("Time to pull:   %v\n", duration)
 
