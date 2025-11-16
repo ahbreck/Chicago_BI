@@ -49,7 +49,8 @@ func GetCovidDetails(db *sql.DB) {
 
 	fmt.Println("Created Table for COVID weekly")
 
-	var url = "https://data.cityofchicago.org/resource/yhhz-zm2v.json?$select=zip_code,week_start,week_end,case_rate_weekly,percent_tested_positive_weekly&$limit=500"
+	// for testing purposes, limiting data to Jan and Feb of 2022
+	var url = "https://data.cityofchicago.org/resource/yhhz-zm2v.json?$select=zip_code,week_start,week_end,case_rate_weekly,percent_tested_positive_weekly&$limit=500&$where=week_start%20between%20'2022-01-01'%20and%20'2022-02-27'"
 
 	//testing url: "https://data.cityofchicago.org/resource/yhhz-zm2v.json?$limit=1"
 
