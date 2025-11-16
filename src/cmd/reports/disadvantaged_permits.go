@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -265,6 +266,9 @@ func WaitForTablesReady(ctx context.Context, db *sql.DB, pollInterval time.Durat
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
+	const statusLogInterval = 30 * time.Second
+	lastStatusLog := time.Time{}
+
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -282,6 +286,12 @@ func WaitForTablesReady(ctx context.Context, db *sql.DB, pollInterval time.Durat
 
 		if allReady {
 			return nil
+		}
+
+		// Log the latest readiness issue periodically so callers can see why we're still waiting.
+		if lastErr != nil && (lastStatusLog.IsZero() || time.Since(lastStatusLog) >= statusLogInterval) {
+			log.Printf("still waiting for source tables: %v", lastErr)
+			lastStatusLog = time.Now()
 		}
 
 		select {
