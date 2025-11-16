@@ -62,6 +62,10 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 		fmt.Sprintf(`UPDATE %s
 		SET point = ST_SetSRID(ST_MakePoint("longitude", "latitude"), 4326)
 		WHERE "longitude" IS NOT NULL AND "latitude" IS NOT NULL`, disadvantagedPermitsIdent),
+		fmt.Sprintf(`ALTER TABLE %s
+                        ADD COLUMN top_5_poverty BOOLEAN DEFAULT FALSE,
+                        ADD COLUMN top_5_unemployment BOOLEAN DEFAULT FALSE,
+                        ADD COLUMN disadvantaged BOOLEAN DEFAULT FALSE`, disadvantagedPermitsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, targetIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, targetIdent, baseIdent),
 		fmt.Sprintf(`ALTER TABLE %s
@@ -86,6 +90,13 @@ func CreateDisadvantagedReport(db *sql.DB) error {
                         )`, targetIdent, targetIdent),
 		fmt.Sprintf(`UPDATE %s
                         SET disadvantaged = top_5_poverty OR top_5_unemployment`, targetIdent),
+		fmt.Sprintf(`UPDATE %s dp
+		SET top_5_poverty = d.top_5_poverty,
+		    top_5_unemployment = d.top_5_unemployment,
+		    disadvantaged = d.disadvantaged
+		FROM %s d
+		WHERE dp."community_area" = d."community_area"`, disadvantagedPermitsIdent, targetIdent),
+		fmt.Sprintf(`ALTER TABLE %s RENAME COLUMN disadvantaged TO waived_fee`, disadvantagedPermitsIdent),
 	}
 
 	for _, statement := range statements {
