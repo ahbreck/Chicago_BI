@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,6 +81,7 @@ func CreateDisadvantagedReport(db *sql.DB) error {
                         ADD COLUMN disadvantaged BOOLEAN DEFAULT FALSE`, disadvantagedPermitsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, targetIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, targetIdent, baseIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN zip_code VARCHAR(9) DEFAULT ''`, targetIdent),
 		fmt.Sprintf(`ALTER TABLE %s
                         ADD COLUMN top_5_poverty BOOLEAN DEFAULT FALSE,
                         ADD COLUMN top_5_unemployment BOOLEAN DEFAULT FALSE,
@@ -116,6 +120,11 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 		}
 	}
 
+	if err := populateDisadvantagedZipCodes(tx, targetIdent); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to populate disadvantaged zip codes: %w", err)
+	}
+
 	if err := populatePermitZipCodes(tx, disadvantagedPermitsIdent, useGeocoding); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to populate zip codes: %w", err)
@@ -124,6 +133,43 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 	if err := tx.Commit(); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to commit disadvantaged report transaction: %w", err)
+	}
+
+	return nil
+}
+
+func populateDisadvantagedZipCodes(tx *sql.Tx, tableIdent string) error {
+	if tx == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
+	clearStmt := fmt.Sprintf(`UPDATE %s SET zip_code = ''`, tableIdent)
+	if _, err := tx.Exec(clearStmt); err != nil {
+		return fmt.Errorf("failed to initialize disadvantaged zip codes: %w", err)
+	}
+
+	communityZipMap, err := loadCommunityAreaZipCodes()
+	if err != nil {
+		return err
+	}
+
+	if len(communityZipMap) == 0 {
+		return fmt.Errorf("no community area to zip code mappings were loaded")
+	}
+
+	values := make([]string, 0, len(communityZipMap))
+	for communityArea, zip := range communityZipMap {
+		escapedZip := strings.ReplaceAll(zip, `'`, `''`)
+		values = append(values, fmt.Sprintf("('%d', '%s')", communityArea, escapedZip))
+	}
+
+	updateStmt := fmt.Sprintf(`UPDATE %s d
+SET zip_code = mapping.zip_code
+FROM (VALUES %s) AS mapping(community_area, zip_code)
+WHERE d."community_area"::text = mapping.community_area`, tableIdent, strings.Join(values, ","))
+
+	if _, err := tx.Exec(updateStmt); err != nil {
+		return fmt.Errorf("failed to populate disadvantaged zip codes from community area mapping: %w", err)
 	}
 
 	return nil
@@ -140,6 +186,30 @@ func populatePermitZipCodes(tx *sql.Tx, tableIdent string, useGeocoding bool) er
 	}
 
 	if !useGeocoding {
+		communityZipMap, err := loadCommunityAreaZipCodes()
+		if err != nil {
+			return err
+		}
+
+		if len(communityZipMap) == 0 {
+			return fmt.Errorf("no community area to zip code mappings were loaded")
+		}
+
+		values := make([]string, 0, len(communityZipMap))
+		for communityArea, zip := range communityZipMap {
+			escapedZip := strings.ReplaceAll(zip, `'`, `''`)
+			values = append(values, fmt.Sprintf("('%d', '%s')", communityArea, escapedZip))
+		}
+
+		updateStmt := fmt.Sprintf(`UPDATE %s bp
+SET zip_code = mapping.zip_code
+FROM (VALUES %s) AS mapping(community_area, zip_code)
+WHERE bp."community_area"::text = mapping.community_area`, tableIdent, strings.Join(values, ","))
+
+		if _, err := tx.Exec(updateStmt); err != nil {
+			return fmt.Errorf("failed to populate zip codes from community area mapping: %w", err)
+		}
+
 		return nil
 	}
 
@@ -213,6 +283,59 @@ func populatePermitZipCodes(tx *sql.Tx, tableIdent string, useGeocoding bool) er
 	}
 
 	return nil
+}
+
+func loadCommunityAreaZipCodes() (map[int]string, error) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		return nil, fmt.Errorf("failed to locate project root while loading community area mapping: %w", err)
+	}
+
+	mappingPath := filepath.Join(projectRoot, "src", "data", "community_area_to_zip_code.csv")
+	file, err := os.Open(mappingPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open community area zip code mapping %s: %w", mappingPath, err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.TrimLeadingSpace = true
+
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read community area zip code mapping from %s: %w", mappingPath, err)
+	}
+
+	areaZipMap := make(map[int]string, len(records))
+	for i, record := range records {
+		if len(record) < 2 {
+			return nil, fmt.Errorf("invalid row %d in %s: expected community_area and zip_code", i+1, mappingPath)
+		}
+
+		communityAreaRaw := strings.TrimSpace(record[0])
+		zipCode := strings.TrimSpace(record[1])
+
+		if i == 0 && strings.EqualFold(communityAreaRaw, "community_area") {
+			continue
+		}
+
+		if communityAreaRaw == "" || zipCode == "" {
+			return nil, fmt.Errorf("missing community_area or zip_code at row %d in %s", i+1, mappingPath)
+		}
+
+		communityArea, err := strconv.Atoi(communityAreaRaw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid community_area %q at row %d in %s: %w", communityAreaRaw, i+1, mappingPath, err)
+		}
+
+		areaZipMap[communityArea] = zipCode
+	}
+
+	if len(areaZipMap) == 0 {
+		return nil, fmt.Errorf("community area mapping file %s contained no data rows", mappingPath)
+	}
+
+	return areaZipMap, nil
 }
 
 func ensurePostGISEnabled(tx *sql.Tx) error {
