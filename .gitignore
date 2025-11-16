@@ -1,0 +1,38 @@
+# Go build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.*
+dist/
+build/
+vendor/
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+.DS_Store
+Thumbs.db
+
+# Env/config (keep the examples tracked)
+src/.env
+src/docker/.env.docker
+
+# Docker/containers
+*.log
+.envrc
+docker-compose.override.yml
+
+# Misc
+*.tmp
