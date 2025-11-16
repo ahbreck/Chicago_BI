@@ -1,6 +1,6 @@
 module github.com/ahbreck/Chicago_BI
 
-go 1.24.4
+go 1.22.12
 
 require (
 	github.com/joho/godotenv v1.5.1

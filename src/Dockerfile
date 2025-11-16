@@ -3,9 +3,9 @@ ARG GO_VERSION=1.22
 
 FROM golang:${GO_VERSION}-bookworm AS builder
 WORKDIR /src
-COPY src/go.mod src/go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
-COPY src/ ./
+COPY . ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/collectors ./cmd/collectors
@@ -21,7 +21,7 @@ RUN useradd --create-home --uid 1000 appuser \
 WORKDIR /app
 COPY --from=builder /out/collectors /usr/local/bin/collectors
 COPY --from=builder /out/reports /usr/local/bin/reports
-COPY src/data ./src/data
+COPY data ./src/data
 COPY .env .env
 RUN mkdir -p data/spatial && chown -R appuser:appuser /app
 USER appuser
