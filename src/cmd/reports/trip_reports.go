@@ -127,13 +127,13 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			GROUP BY week_start, "dropoff_zip_code"`, weeklyDropoffIdent, alertsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, alertsResidentsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, alertsResidentsIdent, targetIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_dropoffs INTEGER`, alertsResidentsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_dropoffs INTEGER DEFAULT 0`, alertsResidentsIdent),
 		fmt.Sprintf(`UPDATE %s r
 			SET weekly_dropoffs = wd.weekly_dropoffs
 			FROM %s wd
 			WHERE r."zip_code" = wd."dropoff_zip_code"
 				AND r."week_start" = wd."week_start"`, alertsResidentsIdent, weeklyDropoffIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_pickups INTEGER`, alertsResidentsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_pickups INTEGER DEFAULT 0`, alertsResidentsIdent),
 		fmt.Sprintf(`UPDATE %s r
 			SET weekly_pickups = wp.weekly_pickups
 			FROM %s wp

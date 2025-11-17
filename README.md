@@ -7,6 +7,7 @@ City of Chicago, populates a data lake, and then builds report tables using thos
 
 The report tables satisfy 6 requirements as follows:
 - "req_1a_covid_alerts_drivers"
+- "req_1b_covid_alerts_residents"
 - "req_2_airport_trips"
 - "req_3_ccvi_trips"
 - "req_4_daily_trips"
