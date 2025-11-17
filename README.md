@@ -1,8 +1,19 @@
 # Chicago_BI
 
-Chicago_BI is a collection of Go microservices that download public data from the
-City of Chicago, populate a PostGIS enabled PostgreSQL data lake, and then build 
-various report tables using those source tables.
+Available at [https://github.com/ahbreck/Chicago_BI](https://github.com/ahbreck/Chicago_BI)
+
+Chicago_BI is a collection of Go microservices that downloads public data from the
+City of Chicago, populates a data lake, and then builds report tables using those source tables.
+
+The report tables satisfy 6 requirements as follows:
+- "req_1a_covid_alerts_drivers"
+- "req_2_airport_trips"
+- "req_3_ccvi_trips"
+- "req_4_daily_trips"
+- "req_4_weekly_trips"
+- "req_4_monthly_trips"
+- "req_5_disadv_perm"
+- "req_6_loan_elig_permits"
 
 This repository is set up to run with Docker so you can run it without installing any
 development dependencies on your machine.
@@ -23,9 +34,6 @@ development dependencies on your machine.
    docker compose -f src/docker/compose.yaml up --build
    ```
 
-   The first build compiles the Go services and downloads all Go modules.
-   Subsequent `up` calls reuse the cached image.
-
 3. Navigate to [http://localhost:8080](http://localhost:8080) to confirm that
    the collectors microservice is running. The reports microservice runs in the
    background, rebuilding the disadvantaged report every 24 hours after the
@@ -34,8 +42,8 @@ development dependencies on your machine.
 4. Follow the logs to watch the data ingestion pipeline:
 
    ```bash
-   docker compose -f src/docker/compose.yaml logs -f collectors
-   docker compose -f src/docker/compose.yaml logs -f reports
+   docker compose -f src/docker/compose.yaml logs -f docker-collectors-1
+   docker compose -f src/docker/compose.yaml logs -f docker-reports-1
    ```
 
 5. Navigate to [http://localhost:8085](http://localhost:8085) to access PgAdmin4 and log in with user@gmail.com

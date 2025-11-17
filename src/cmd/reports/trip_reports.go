@@ -6,13 +6,16 @@ import (
 )
 
 const (
-	covidRepCatsTable   = "covid_rep_cats"
-	covidAlertsTable    = "req_1a_covid_alerts"
+	covidRepCatsTable    = "covid_rep_cats"
+	covidAlertsTable     = "req_1a_covid_alerts_drivers"
+	covidAlertsResidents = "req_1b_covid_alerts_residents"
 	reqAirportTripsTable = "req_2_airport_trips"
-	CCVITable           = "req_3_ccvi_trips"
-	dailyTripsTable     = "req_4_daily_trips"
-	weeklyTripsTable    = "req_4_weekly_trips"
-	monthlyTripsTable   = "req_4_monthly_trips"
+	CCVITable            = "req_3_ccvi_trips"
+	dailyTripsTable      = "req_4_daily_trips"
+	weeklyTripsTable     = "req_4_weekly_trips"
+	monthlyTripsTable    = "req_4_monthly_trips"
+	weeklyPickupTable    = "weekly_trips_by_pickup_and_zip"
+	weeklyDropoffTable   = "weekly_trips_by_dropoff_and_zip"
 )
 
 // CreateCovidCategoryReport builds covid_rep_cats with covid_cat buckets based on case_rate_weekly.
@@ -41,12 +44,15 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 	sourceIdent := quoteIdentifier(covidTable)
 	targetIdent := quoteIdentifier(covidRepCatsTable)
 	alertsIdent := quoteIdentifier(covidAlertsTable)
+	alertsResidentsIdent := quoteIdentifier(covidAlertsResidents)
 	reqAirportTripsIdent := quoteIdentifier(reqAirportTripsTable)
 	ccviIdent := quoteIdentifier(ccviTable)
 	CCVIIdent := quoteIdentifier(CCVITable)
 	dailyIdent := quoteIdentifier(dailyTripsTable)
 	weeklyIdent := quoteIdentifier(weeklyTripsTable)
 	monthlyIdent := quoteIdentifier(monthlyTripsTable)
+	weeklyPickupIdent := quoteIdentifier(weeklyPickupTable)
+	weeklyDropoffIdent := quoteIdentifier(weeklyDropoffTable)
 	tripsIdent := quoteIdentifier(taxiTripsTable)
 
 	statements := []string{
@@ -109,6 +115,30 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			FROM %s c
 			WHERE t."dropoff_zip_code" = c."zip_code"
 				AND t."week_start" = c."week_start"`, alertsIdent, targetIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, weeklyPickupIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS
+			SELECT week_start, "pickup_zip_code", COUNT(*) AS weekly_pickups
+			FROM %s
+			GROUP BY week_start, "pickup_zip_code"`, weeklyPickupIdent, alertsIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, weeklyDropoffIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS
+			SELECT week_start, "dropoff_zip_code", COUNT(*) AS weekly_dropoffs
+			FROM %s
+			GROUP BY week_start, "dropoff_zip_code"`, weeklyDropoffIdent, alertsIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, alertsResidentsIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, alertsResidentsIdent, targetIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_dropoffs INTEGER`, alertsResidentsIdent),
+		fmt.Sprintf(`UPDATE %s r
+			SET weekly_dropoffs = wd.weekly_dropoffs
+			FROM %s wd
+			WHERE r."zip_code" = wd."dropoff_zip_code"
+				AND r."week_start" = wd."week_start"`, alertsResidentsIdent, weeklyDropoffIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_pickups INTEGER`, alertsResidentsIdent),
+		fmt.Sprintf(`UPDATE %s r
+			SET weekly_pickups = wp.weekly_pickups
+			FROM %s wp
+			WHERE r."zip_code" = wp."pickup_zip_code"
+				AND r."week_start" = wp."week_start"`, alertsResidentsIdent, weeklyPickupIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, dailyIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
 			WITH daily_counts AS (
