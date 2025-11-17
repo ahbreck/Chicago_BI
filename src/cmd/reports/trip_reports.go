@@ -47,7 +47,7 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, alertsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, alertsIdent, tripsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN week_start DATE`, alertsIdent),
-		fmt.Sprintf(`UPDATE %s SET week_start = DATE_TRUNC('week', "trip_start_timestamp")::date`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s SET week_start = (DATE_TRUNC('week', "trip_start_timestamp") - INTERVAL '1 day')::date`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN pickup_covid_cat VARCHAR(6)`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN dropoff_covid_cat VARCHAR(6)`, alertsIdent),
 		fmt.Sprintf(`UPDATE %s t
