@@ -8,9 +8,9 @@ import (
 const (
 	covidRepCatsTable = "covid_rep_cats"
 	covidAlertsTable  = "report_1_covid_alerts"
-	dailyTripsTable   = "daily_trips"
-	weeklyTripsTable  = "weekly_trips"
-	monthlyTripsTable = "monthly_trips"
+	dailyTripsTable   = "report_4_daily_trips"
+	weeklyTripsTable  = "report_5_weekly_trips"
+	monthlyTripsTable = "report_6_monthly_trips"
 )
 
 // CreateCovidCategoryReport builds covid_rep_cats with covid_cat buckets based on case_rate_weekly.
