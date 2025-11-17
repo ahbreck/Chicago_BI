@@ -6,8 +6,11 @@ import (
 )
 
 const (
-	covidRepCatsTable  = "covid_rep_cats"
-	covidAlertsTable   = "report_1_covid_alerts"
+	covidRepCatsTable = "covid_rep_cats"
+	covidAlertsTable  = "report_1_covid_alerts"
+	dailyTripsTable   = "daily_trips"
+	weeklyTripsTable  = "weekly_trips"
+	monthlyTripsTable = "monthly_trips"
 )
 
 // CreateCovidCategoryReport builds covid_rep_cats with covid_cat buckets based on case_rate_weekly.
@@ -32,6 +35,9 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 	sourceIdent := quoteIdentifier(covidTable)
 	targetIdent := quoteIdentifier(covidRepCatsTable)
 	alertsIdent := quoteIdentifier(covidAlertsTable)
+	dailyIdent := quoteIdentifier(dailyTripsTable)
+	weeklyIdent := quoteIdentifier(weeklyTripsTable)
+	monthlyIdent := quoteIdentifier(monthlyTripsTable)
 	tripsIdent := quoteIdentifier(taxiTripsTable)
 
 	statements := []string{
@@ -46,8 +52,12 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			END`, targetIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, alertsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, alertsIdent, tripsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN day DATE`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s SET day = "trip_start_timestamp"::date`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN week_start DATE`, alertsIdent),
 		fmt.Sprintf(`UPDATE %s SET week_start = (DATE_TRUNC('week', "trip_start_timestamp") - INTERVAL '1 day')::date`, alertsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN month_start DATE`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s SET month_start = DATE_TRUNC('month', "trip_start_timestamp")::date`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN pickup_covid_cat VARCHAR(6)`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN dropoff_covid_cat VARCHAR(6)`, alertsIdent),
 		fmt.Sprintf(`UPDATE %s t
@@ -60,6 +70,21 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			FROM %s c
 			WHERE t."dropoff_zip_code" = c."zip_code"
 				AND t."week_start" = c."week_start"`, alertsIdent, targetIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, dailyIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS
+			SELECT "dropoff_zip_code" AS zip_code, day, COUNT(*) AS trips
+			FROM %s
+			GROUP BY "dropoff_zip_code", day`, dailyIdent, alertsIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, weeklyIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS
+			SELECT "dropoff_zip_code" AS zip_code, week_start, COUNT(*) AS trips
+			FROM %s
+			GROUP BY "dropoff_zip_code", week_start`, weeklyIdent, alertsIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, monthlyIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS
+			SELECT "dropoff_zip_code" AS zip_code, month_start, COUNT(*) AS trips
+			FROM %s
+			GROUP BY "dropoff_zip_code", month_start`, monthlyIdent, alertsIdent),
 	}
 
 	for _, stmt := range statements {
