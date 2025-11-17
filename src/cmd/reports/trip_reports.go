@@ -72,19 +72,46 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 				AND t."week_start" = c."week_start"`, alertsIdent, targetIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, dailyIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
-			SELECT "dropoff_zip_code" AS zip_code, day, COUNT(*) AS trips
-			FROM %s
-			GROUP BY "dropoff_zip_code", day`, dailyIdent, alertsIdent),
+			WITH daily_counts AS (
+				SELECT "dropoff_zip_code", day, COUNT(*) AS trips_per_day
+				FROM %s
+				GROUP BY "dropoff_zip_code", day
+			),
+			next_day AS (
+				SELECT (MAX(day) + INTERVAL '1 day')::date AS day_value FROM %s
+			)
+			SELECT dc."dropoff_zip_code" AS zip_code, nd.day_value AS day, AVG(dc.trips_per_day) AS trips
+			FROM daily_counts dc
+			CROSS JOIN next_day nd
+			GROUP BY dc."dropoff_zip_code", nd.day_value`, dailyIdent, alertsIdent, alertsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, weeklyIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
-			SELECT "dropoff_zip_code" AS zip_code, week_start, COUNT(*) AS trips
-			FROM %s
-			GROUP BY "dropoff_zip_code", week_start`, weeklyIdent, alertsIdent),
+			WITH weekly_counts AS (
+				SELECT "dropoff_zip_code", week_start, COUNT(*) AS trips_per_week
+				FROM %s
+				GROUP BY "dropoff_zip_code", week_start
+			),
+			next_week AS (
+				SELECT (MAX(week_start) + INTERVAL '1 week')::date AS week_value FROM %s
+			)
+			SELECT wc."dropoff_zip_code" AS zip_code, nw.week_value AS week_start, AVG(wc.trips_per_week) AS trips
+			FROM weekly_counts wc
+			CROSS JOIN next_week nw
+			GROUP BY wc."dropoff_zip_code", nw.week_value`, weeklyIdent, alertsIdent, alertsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, monthlyIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
-			SELECT "dropoff_zip_code" AS zip_code, month_start, COUNT(*) AS trips
-			FROM %s
-			GROUP BY "dropoff_zip_code", month_start`, monthlyIdent, alertsIdent),
+			WITH monthly_counts AS (
+				SELECT "dropoff_zip_code", month_start, COUNT(*) AS trips_per_month
+				FROM %s
+				GROUP BY "dropoff_zip_code", month_start
+			),
+			next_month AS (
+				SELECT (MAX(month_start) + INTERVAL '1 month')::date AS month_value FROM %s
+			)
+			SELECT mc."dropoff_zip_code" AS zip_code, nm.month_value AS month_start, AVG(mc.trips_per_month) AS trips
+			FROM monthly_counts mc
+			CROSS JOIN next_month nm
+			GROUP BY mc."dropoff_zip_code", nm.month_value`, monthlyIdent, alertsIdent, alertsIdent),
 	}
 
 	for _, stmt := range statements {
