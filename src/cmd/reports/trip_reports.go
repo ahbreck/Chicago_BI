@@ -8,6 +8,7 @@ import (
 const (
 	covidRepCatsTable = "covid_rep_cats"
 	covidAlertsTable  = "report_1_covid_alerts"
+	airportTripsCCVITable = "report_3_airport_trips_ccvi"
 	dailyTripsTable   = "report_4_daily_trips"
 	weeklyTripsTable  = "report_5_weekly_trips"
 	monthlyTripsTable = "report_6_monthly_trips"
@@ -27,6 +28,10 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 		return err
 	}
 
+	if err := ensureTableReady(db, ccviTable); err != nil {
+		return err
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to start covid category report transaction: %w", err)
@@ -35,6 +40,8 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 	sourceIdent := quoteIdentifier(covidTable)
 	targetIdent := quoteIdentifier(covidRepCatsTable)
 	alertsIdent := quoteIdentifier(covidAlertsTable)
+	ccviIdent := quoteIdentifier(ccviTable)
+	airportTripsCCVIIdent := quoteIdentifier(airportTripsCCVITable)
 	dailyIdent := quoteIdentifier(dailyTripsTable)
 	weeklyIdent := quoteIdentifier(weeklyTripsTable)
 	monthlyIdent := quoteIdentifier(monthlyTripsTable)
@@ -98,6 +105,17 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			FROM weekly_counts wc
 			CROSS JOIN next_week nw
 			GROUP BY wc."dropoff_zip_code", nw.week_value`, weeklyIdent, alertsIdent, alertsIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, airportTripsCCVIIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS
+			SELECT *
+			FROM %s
+			WHERE "ccvi_category" = 'HIGH'
+				AND "geography_type" = 'ZIP'`, airportTripsCCVIIdent, ccviIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_trips DOUBLE PRECISION`, airportTripsCCVIIdent),
+		fmt.Sprintf(`UPDATE %s ccvi
+			SET weekly_trips = wt.trips
+			FROM %s wt
+			WHERE ccvi."community_area_or_zip" = wt."zip_code"`, airportTripsCCVIIdent, weeklyIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, monthlyIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
 			WITH monthly_counts AS (
