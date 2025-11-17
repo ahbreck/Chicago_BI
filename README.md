@@ -68,8 +68,9 @@ development dependencies on your machine.
 |             | volume `postgres-data`.                                                                      |              |
 | `collectors`| Go service that orchestrates all dataset collectors and exposes a health/status endpoint.    | `8080`        |
 | `reports`   | Go service that waits for fresh source tables and rebuilds the disadvantaged report daily.   | N/A           |
+| `pgadmin4`  | PgAdmin4 web UI for viewing/managing the Postgres instance.                                  | `8085`        |
 
-Both Go services share the same image (see `Dockerfile`) and store spatial
+The collectors and reports Go services share the same image (see `Dockerfile`) and store spatial
 assets inside the named volume `spatial-data` mounted at `/app/data`.
 
 ### Useful commands
@@ -108,8 +109,8 @@ variables.
 
 ### Environment files and examples
 
-The tracked example files show the required keys while keeping real secrets
-out of Git:
+The tracked example files show the required environment variables and suggested defaults while keeping secrets
+out of Git (like the geocoding API key):
 
 - Use `src/docker/.env.docker.example` as the template for Docker runs. Copy it
   to `src/docker/.env.docker` and fill in your values:
