@@ -68,8 +68,8 @@ func GetTaxiTrips(db *sql.DB) {
 	start := time.Now()
 
 	// Just running sequentially works better in this case rather than using goroutines.
-	GetTrips(db, "taxi", "wrvz-psew", 20, useGeocoding)
-	GetTrips(db, "tnp", "m6dm-c72p", 20, useGeocoding)
+	GetTrips(db, "taxi", "wrvz-psew", 500, useGeocoding)
+	GetTrips(db, "tnp", "m6dm-c72p", 500, useGeocoding)
 	duration := time.Since(start)
 	fmt.Printf("Time to pull:   %v\n", duration)
 
@@ -90,8 +90,8 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 	}
 
 	// Build API URL dynamically
-	// For testing purposes, time range filter is set to limit data to Jan and Feb of 2022
-	url := fmt.Sprintf("https://data.cityofchicago.org/resource/%s.json?$limit=%d&$where=trip_start_timestamp%%20between%%20'2022-01-01T00:00:00'%%20and%%20'2022-02-27T23:59:59'", apiCode, limit)
+	// For testing purposes, time range filter is set to limit data to Jan through March of 2022
+	url := fmt.Sprintf("https://data.cityofchicago.org/resource/%s.json?$limit=%d&$where=trip_start_timestamp%%20between%%20'2022-01-01T00:00:00'%%20and%%20'2022-03-31T23:59:59'", apiCode, limit)
 
 	res, err := shared.FetchSlowAPI(url)
 	if err != nil {
