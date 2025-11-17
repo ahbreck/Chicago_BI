@@ -1,25 +1,22 @@
 # Chicago_BI
 
 Chicago_BI is a collection of Go microservices that download public data from the
-City of Chicago, hydrate a PostGIS enabled PostgreSQL database, and build a
-disadvantaged business report on top of those curated datasets.
+City of Chicago, populate a PostGIS enabled PostgreSQL data lake, and then build 
+various report tables using those source tables.
 
-This repository now ships with Docker assets so you can run the collectors,
-report generator, and their backing Postgres instance without installing any
+This repository is set up to run with Docker so you can run it without installing any
 development dependencies on your machine.
 
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) 4.19 or
   newer (or the Docker Engine/CLI + Docker Compose plugin)
-- At least 4 GB of available RAM – the collectors and PostGIS database routinely
-  hold large datasets in memory while ingesting records.
+- At least 4 GB of available RAM
 
 ## Running the stack
 
-1. Review `src/docker/.env.docker` and adjust any values you want to override
-   (database credentials, exposed ports, project name, etc.). Alternatively,
-   you can set environment variables inline when invoking `docker compose`.
+1. Copy `src/docker/.env.docker.example` as `src/docker/.env.docker` and adjust any values you want to override
+   (database credentials, exposed ports, project name, etc.). See "environment files and examples" section below.
 2. Start all services from the repository root:
 
    ```bash
@@ -41,7 +38,11 @@ development dependencies on your machine.
    docker compose -f src/docker/compose.yaml logs -f reports
    ```
 
-5. Stop and remove the containers when you are finished:
+5. Navigate to [http://localhost:8085](http://localhost:8085) to access PgAdmin4 and log in with user@gmail.com
+  and SuperSecret (or whatever other credentials you set in the compose.yaml file). Then register the server to 
+  view the tables.
+
+6. Stop and remove the containers when you are finished:
 
    ```bash
    docker compose -f src/docker/compose.yaml down
@@ -93,11 +94,8 @@ assets inside the named volume `spatial-data` mounted at `/app/data`.
 
 Configuration is provided through the `src/docker/.env.docker` file, which is
 mounted into the runtime containers so the services can satisfy their
-`godotenv` requirement. The Compose file still enumerates the database
-variables so Postgres receives the same credentials, but all of those values
-originate from this single Docker-specific source. Override any of the
-variables by editing that file or defining them inline when calling
-`docker compose -f src/docker/compose.yaml ...`.
+`godotenv` requirement. The Compose file still lists the database environment
+variables.
 
 ### Environment files and examples
 
@@ -118,9 +116,8 @@ out of Git:
   cp src/.env.example src/.env
   ```
 
-Both `src/docker/.env.docker` and `src/.env` are listed in `.gitignore` so your
-local secrets stay private, while the example files remain in version control
-for reference.
+Both `src/docker/.env.docker` and `src/.env` are listed in `.gitignore` so api keys stay private, 
+while the example files remain in version control for reference.
 
 | Variable            | Description                                                                      |
 |---------------------|----------------------------------------------------------------------------------|
@@ -150,6 +147,3 @@ coexisting in the same directory.
 └── ...                    # Repository metadata (LICENSE, README, etc.)
 ```
 
-Feel free to adapt these defaults for production deployments (for example,
-externalizing the Postgres connection string, pointing to managed storage, or
-adding monitoring sidecars).

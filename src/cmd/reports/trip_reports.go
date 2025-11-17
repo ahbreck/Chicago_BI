@@ -6,12 +6,13 @@ import (
 )
 
 const (
-	covidRepCatsTable = "covid_rep_cats"
-	covidAlertsTable  = "report_1_covid_alerts"
-	airportTripsCCVITable = "report_3_airport_trips_ccvi"
-	dailyTripsTable   = "report_4_daily_trips"
-	weeklyTripsTable  = "report_5_weekly_trips"
-	monthlyTripsTable = "report_6_monthly_trips"
+	covidRepCatsTable   = "covid_rep_cats"
+	covidAlertsTable    = "req_1a_covid_alerts"
+	reqAirportTripsTable = "req_2_airport_trips"
+	CCVITable           = "req_3_ccvi_trips"
+	dailyTripsTable     = "req_4_daily_trips"
+	weeklyTripsTable    = "req_4_weekly_trips"
+	monthlyTripsTable   = "req_4_monthly_trips"
 )
 
 // CreateCovidCategoryReport builds covid_rep_cats with covid_cat buckets based on case_rate_weekly.
@@ -40,8 +41,9 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 	sourceIdent := quoteIdentifier(covidTable)
 	targetIdent := quoteIdentifier(covidRepCatsTable)
 	alertsIdent := quoteIdentifier(covidAlertsTable)
+	reqAirportTripsIdent := quoteIdentifier(reqAirportTripsTable)
 	ccviIdent := quoteIdentifier(ccviTable)
-	airportTripsCCVIIdent := quoteIdentifier(airportTripsCCVITable)
+	CCVIIdent := quoteIdentifier(CCVITable)
 	dailyIdent := quoteIdentifier(dailyTripsTable)
 	weeklyIdent := quoteIdentifier(weeklyTripsTable)
 	monthlyIdent := quoteIdentifier(monthlyTripsTable)
@@ -59,6 +61,36 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			END`, targetIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, alertsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, alertsIdent, tripsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN airport_dropoff BOOLEAN DEFAULT false`, alertsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN airport_pickup BOOLEAN DEFAULT false`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s
+			SET airport_dropoff = true
+			WHERE "dropoff_zip_code" IN ('60666', '60656', '60665', '60638')`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s
+			SET airport_pickup = true
+			WHERE "pickup_zip_code" IN ('60666', '60656', '60665', '60638')`, alertsIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, reqAirportTripsIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, reqAirportTripsIdent, targetIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN trips_to_airport INTEGER DEFAULT 0`, reqAirportTripsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN trips_from_airport INTEGER DEFAULT 0`, reqAirportTripsIdent),
+		fmt.Sprintf(`UPDATE %s cat
+			SET trips_to_airport = airport_counts.trips_to_airport
+			FROM (
+				SELECT "pickup_zip_code" AS zip_code, COUNT(*) AS trips_to_airport
+				FROM %s
+				WHERE airport_dropoff = true
+				GROUP BY "pickup_zip_code"
+			) AS airport_counts
+			WHERE cat."zip_code" = airport_counts.zip_code`, reqAirportTripsIdent, alertsIdent),
+		fmt.Sprintf(`UPDATE %s cat
+			SET trips_from_airport = airport_counts.trips_from_airport
+			FROM (
+				SELECT "dropoff_zip_code" AS zip_code, COUNT(*) AS trips_from_airport
+				FROM %s
+				WHERE airport_pickup = true
+				GROUP BY "dropoff_zip_code"
+			) AS airport_counts
+			WHERE cat."zip_code" = airport_counts.zip_code`, reqAirportTripsIdent, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN day DATE`, alertsIdent),
 		fmt.Sprintf(`UPDATE %s SET day = "trip_start_timestamp"::date`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN week_start DATE`, alertsIdent),
@@ -105,17 +137,17 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			FROM weekly_counts wc
 			CROSS JOIN next_week nw
 			GROUP BY wc."dropoff_zip_code", nw.week_value`, weeklyIdent, alertsIdent, alertsIdent),
-		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, airportTripsCCVIIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, CCVIIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
 			SELECT *
 			FROM %s
 			WHERE "ccvi_category" = 'HIGH'
-				AND "geography_type" = 'ZIP'`, airportTripsCCVIIdent, ccviIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_trips DOUBLE PRECISION`, airportTripsCCVIIdent),
+				AND "geography_type" = 'ZIP'`, CCVIIdent, ccviIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_trips DOUBLE PRECISION`, CCVIIdent),
 		fmt.Sprintf(`UPDATE %s ccvi
 			SET weekly_trips = wt.trips
 			FROM %s wt
-			WHERE ccvi."community_area_or_zip" = wt."zip_code"`, airportTripsCCVIIdent, weeklyIdent),
+			WHERE ccvi."community_area_or_zip" = wt."zip_code"`, CCVIIdent, weeklyIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, monthlyIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
 			WITH monthly_counts AS (
