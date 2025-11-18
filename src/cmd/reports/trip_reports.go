@@ -84,26 +84,28 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 		fmt.Sprintf(`UPDATE %s cat
 			SET trips_to_airport = airport_counts.trips_to_airport
 			FROM (
-				SELECT "pickup_zip_code" AS zip_code, COUNT(*) AS trips_to_airport
+				SELECT "pickup_zip_code" AS zip_code, week_start, COUNT(*) AS trips_to_airport
 				FROM %s
 				WHERE airport_dropoff = true
-				GROUP BY "pickup_zip_code"
+				GROUP BY "pickup_zip_code", week_start
 			) AS airport_counts
-			WHERE cat."zip_code" = airport_counts.zip_code`, reqAirportTripsIdent, alertsIdent),
+			WHERE cat."zip_code" = airport_counts.zip_code
+				AND cat."week_start" = airport_counts.week_start`, reqAirportTripsIdent, alertsIdent),
 		fmt.Sprintf(`UPDATE %s cat
 			SET trips_from_airport = airport_counts.trips_from_airport
 			FROM (
-				SELECT "dropoff_zip_code" AS zip_code, COUNT(*) AS trips_from_airport
+				SELECT "dropoff_zip_code" AS zip_code, week_start, COUNT(*) AS trips_from_airport
 				FROM %s
 				WHERE airport_pickup = true
-				GROUP BY "dropoff_zip_code"
+				GROUP BY "dropoff_zip_code", week_start
 			) AS airport_counts
-			WHERE cat."zip_code" = airport_counts.zip_code`, reqAirportTripsIdent, alertsIdent),
+			WHERE cat."zip_code" = airport_counts.zip_code
+				AND cat."week_start" = airport_counts.week_start`, reqAirportTripsIdent, alertsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, reqAirportTripsSortedIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
 			SELECT *
 			FROM %s
-			ORDER BY trips_from_airport DESC`, reqAirportTripsSortedIdent, reqAirportTripsIdent),
+			ORDER BY "zip_code", "week_start"`, reqAirportTripsSortedIdent, reqAirportTripsIdent),
 		fmt.Sprintf(`DROP TABLE %s`, reqAirportTripsIdent),
 		fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, reqAirportTripsSortedIdent, reqAirportTripsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN day DATE`, alertsIdent),
@@ -178,20 +180,26 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			GROUP BY wc."dropoff_zip_code", nw.week_value`, weeklyIdent, alertsIdent, alertsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, CCVIIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
-			SELECT *
-			FROM %s
-			WHERE "ccvi_category" = 'HIGH'
-				AND "geography_type" = 'ZIP'`, CCVIIdent, ccviIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN weekly_trips DOUBLE PRECISION`, CCVIIdent),
-		fmt.Sprintf(`UPDATE %s ccvi
-			SET weekly_trips = wt.trips
-			FROM %s wt
-			WHERE ccvi."community_area_or_zip" = wt."zip_code"`, CCVIIdent, weeklyIdent),
+			WITH weekly_trips AS (
+				SELECT week_start, "pickup_zip_code" AS zip_code, COUNT(*) AS trips
+				FROM %s
+				GROUP BY week_start, "pickup_zip_code"
+				UNION ALL
+				SELECT week_start, "dropoff_zip_code" AS zip_code, COUNT(*) AS trips
+				FROM %s
+				GROUP BY week_start, "dropoff_zip_code"
+			)
+			SELECT c.*, wt.week_start, SUM(wt.trips) AS weekly_trips
+			FROM %s c
+			JOIN weekly_trips wt ON wt.zip_code = c."community_area_or_zip"
+			WHERE c."ccvi_category" = 'HIGH'
+				AND c."geography_type" = 'ZIP'
+			GROUP BY c."id", c."geography_type", c."community_area_or_zip", c."community_area_name", c."ccvi_score", c."ccvi_category", wt.week_start`, CCVIIdent, alertsIdent, alertsIdent, ccviIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, CCVISortedIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
 			SELECT *
 			FROM %s
-			ORDER BY weekly_trips DESC`, CCVISortedIdent, CCVIIdent),
+			ORDER BY "community_area_or_zip", "week_start"`, CCVISortedIdent, CCVIIdent),
 		fmt.Sprintf(`DROP TABLE %s`, CCVIIdent),
 		fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, CCVISortedIdent, CCVIIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, monthlyIdent),

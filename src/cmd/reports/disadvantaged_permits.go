@@ -113,7 +113,6 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 		FROM %s d
 		WHERE dp."community_area" = d."community_area"`, disadvantagedPermitsIdent, targetIdent),
 		fmt.Sprintf(`ALTER TABLE %s RENAME COLUMN disadvantaged TO waived_fee`, disadvantagedPermitsIdent),
-		fmt.Sprintf(`DELETE FROM %s WHERE waived_fee IS NOT TRUE`, disadvantagedPermitsIdent),
 	}
 
 	for _, statement := range statements {
@@ -136,6 +135,12 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 	if err := createLoanEligibilityPermits(tx, disadvantagedPermitsIdent, targetIdent, loanEligibilityPermitsIdent); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to build loan eligibility report: %w", err)
+	}
+
+	filterWaivedStmt := fmt.Sprintf(`DELETE FROM %s WHERE waived_fee IS NOT TRUE`, disadvantagedPermitsIdent)
+	if _, err := tx.Exec(filterWaivedStmt); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to filter waived_fee permits: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
