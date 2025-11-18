@@ -46,8 +46,10 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 	alertsIdent := quoteIdentifier(covidAlertsTable)
 	alertsResidentsIdent := quoteIdentifier(covidAlertsResidents)
 	reqAirportTripsIdent := quoteIdentifier(reqAirportTripsTable)
+	reqAirportTripsSortedIdent := quoteIdentifier(reqAirportTripsTable + "_sorted")
 	ccviIdent := quoteIdentifier(ccviTable)
 	CCVIIdent := quoteIdentifier(CCVITable)
+	CCVISortedIdent := quoteIdentifier(CCVITable + "_sorted")
 	dailyIdent := quoteIdentifier(dailyTripsTable)
 	weeklyIdent := quoteIdentifier(weeklyTripsTable)
 	monthlyIdent := quoteIdentifier(monthlyTripsTable)
@@ -97,6 +99,13 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 				GROUP BY "dropoff_zip_code"
 			) AS airport_counts
 			WHERE cat."zip_code" = airport_counts.zip_code`, reqAirportTripsIdent, alertsIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, reqAirportTripsSortedIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS
+			SELECT *
+			FROM %s
+			ORDER BY trips_from_airport DESC`, reqAirportTripsSortedIdent, reqAirportTripsIdent),
+		fmt.Sprintf(`DROP TABLE %s`, reqAirportTripsIdent),
+		fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, reqAirportTripsSortedIdent, reqAirportTripsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN day DATE`, alertsIdent),
 		fmt.Sprintf(`UPDATE %s SET day = "trip_start_timestamp"::date`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN week_start DATE`, alertsIdent),
@@ -178,6 +187,13 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			SET weekly_trips = wt.trips
 			FROM %s wt
 			WHERE ccvi."community_area_or_zip" = wt."zip_code"`, CCVIIdent, weeklyIdent),
+		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, CCVISortedIdent),
+		fmt.Sprintf(`CREATE TABLE %s AS
+			SELECT *
+			FROM %s
+			ORDER BY weekly_trips DESC`, CCVISortedIdent, CCVIIdent),
+		fmt.Sprintf(`DROP TABLE %s`, CCVIIdent),
+		fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, CCVISortedIdent, CCVIIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, monthlyIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS
 			WITH monthly_counts AS (

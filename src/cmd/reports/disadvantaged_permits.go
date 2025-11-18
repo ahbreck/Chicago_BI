@@ -113,6 +113,7 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 		FROM %s d
 		WHERE dp."community_area" = d."community_area"`, disadvantagedPermitsIdent, targetIdent),
 		fmt.Sprintf(`ALTER TABLE %s RENAME COLUMN disadvantaged TO waived_fee`, disadvantagedPermitsIdent),
+		fmt.Sprintf(`DELETE FROM %s WHERE waived_fee IS NOT TRUE`, disadvantagedPermitsIdent),
 	}
 
 	for _, statement := range statements {
@@ -226,6 +227,7 @@ WHERE lp."zip_code" = counts."zip_code"
 			GROUP BY "zip_code"
 		) permit_counts
 	)`, loanEligIdent, loanEligIdent, loanEligIdent),
+		fmt.Sprintf(`DELETE FROM %s WHERE loan_eligibility IS NOT TRUE`, loanEligIdent),
 	}
 
 	for _, statement := range statements {
