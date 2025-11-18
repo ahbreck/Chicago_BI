@@ -77,6 +77,12 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 		fmt.Sprintf(`UPDATE %s
 			SET airport_pickup = true
 			WHERE "pickup_zip_code" IN ('60666', '60656', '60665', '60638')`, alertsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN day DATE`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s SET day = "trip_start_timestamp"::date`, alertsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN week_start DATE`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s SET week_start = (DATE_TRUNC('week', "trip_start_timestamp") - INTERVAL '1 day')::date`, alertsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN month_start DATE`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s SET month_start = DATE_TRUNC('month', "trip_start_timestamp")::date`, alertsIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, reqAirportTripsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, reqAirportTripsIdent, targetIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN trips_to_airport INTEGER DEFAULT 0`, reqAirportTripsIdent),
@@ -108,12 +114,6 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			ORDER BY "zip_code", "week_start"`, reqAirportTripsSortedIdent, reqAirportTripsIdent),
 		fmt.Sprintf(`DROP TABLE %s`, reqAirportTripsIdent),
 		fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, reqAirportTripsSortedIdent, reqAirportTripsIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN day DATE`, alertsIdent),
-		fmt.Sprintf(`UPDATE %s SET day = "trip_start_timestamp"::date`, alertsIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN week_start DATE`, alertsIdent),
-		fmt.Sprintf(`UPDATE %s SET week_start = (DATE_TRUNC('week', "trip_start_timestamp") - INTERVAL '1 day')::date`, alertsIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN month_start DATE`, alertsIdent),
-		fmt.Sprintf(`UPDATE %s SET month_start = DATE_TRUNC('month', "trip_start_timestamp")::date`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN pickup_covid_cat VARCHAR(6)`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN dropoff_covid_cat VARCHAR(6)`, alertsIdent),
 		fmt.Sprintf(`UPDATE %s t

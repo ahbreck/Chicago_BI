@@ -58,7 +58,7 @@ func GetBuildingPermits(db *sql.DB) {
 
 	fmt.Println("Created Table for Building Permits")
 
-	var url = "https://data.cityofchicago.org/resource/building-permits.json?$select=id,permit_,permit_type,issue_date,street_number,street_name,latitude,longitude,community_area,census_tract&$limit=500"
+	var url = "https://data.cityofchicago.org/resource/building-permits.json?$select=id,permit_,permit_type,issue_date,street_number,street_name,latitude,longitude,community_area,census_tract&$limit=1000"
 
 	res, err := shared.FetchFastAPI(url)
 	if err != nil {

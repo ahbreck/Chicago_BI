@@ -1,6 +1,7 @@
 ﻿import os
 import sys
 import time
+import threading
 from psycopg2 import sql
 import psycopg2
 from flask import Flask, abort, render_template, request
@@ -21,6 +22,7 @@ TABLE_CHECK_INTERVAL = int(os.getenv("TABLE_CHECK_INTERVAL", "3"))
 DEFAULT_STARTUP_DELAY_MINUTES = 4
 REQUIRED_TABLES = list(ALLOWED_TABLES.keys())
 _tables_ready = False
+_startup_error: str | None = None
 
 
 def get_database_url() -> str:
@@ -132,7 +134,14 @@ def wait_for_required_tables(startup_delay_seconds: int = 0):
 
 @app.route("/")
 def index():
-    return render_template("index.html", tables=ALLOWED_TABLES)
+    status_message = None
+    if not _tables_ready:
+        if _startup_error:
+            status_message = f"Startup failed: {_startup_error}"
+        else:
+            status_message = "Data is still loading—please wait for the pipeline to finish its initial warmup."
+
+    return render_template("index.html", tables=ALLOWED_TABLES, status_message=status_message)
 
 
 @app.route("/table/<table_key>")
@@ -145,12 +154,18 @@ def show_table(table_key: str):
     rows = []
     columns = []
     total_rows = 0
-    try:
-        rows, columns, total_rows = fetch_table_rows(table_key, limit, offset)
-    except psycopg2.errors.UndefinedTable:
-        error_message = "Data not ready yet; the reports service is still building this table."
-    except psycopg2.Error as exc:  # pragma: no cover - runtime DB failure
-        error_message = f"Unable to fetch data: {exc}"
+    if not _tables_ready:
+        if _startup_error:
+            error_message = f"Startup failed: {_startup_error}"
+        else:
+            error_message = "Data is still loading—please wait for the pipeline to finish its initial warmup."
+    else:
+        try:
+            rows, columns, total_rows = fetch_table_rows(table_key, limit, offset)
+        except psycopg2.errors.UndefinedTable:
+            error_message = "Data not ready yet; the reports service is still building this table."
+        except psycopg2.Error as exc:  # pragma: no cover - runtime DB failure
+            error_message = f"Unable to fetch data: {exc}"
 
     next_offset = offset + limit if offset + limit < total_rows else None
     prev_offset = offset - limit if offset - limit >= 0 else None
@@ -181,11 +196,23 @@ def readiness():
 
 
 startup_delay_seconds = _startup_delay_seconds()
-try:
-    wait_for_required_tables(startup_delay_seconds=startup_delay_seconds)
-except RuntimeError as exc:  # pragma: no cover - startup failure path
-    print(str(exc), file=sys.stderr)
-    sys.exit(1)
+
+
+def _wait_for_readiness():
+    global _startup_error
+    try:
+        wait_for_required_tables(startup_delay_seconds=startup_delay_seconds)
+    except RuntimeError as exc:  # pragma: no cover - startup failure path
+        _startup_error = str(exc)
+        print(str(exc), file=sys.stderr)
+        os._exit(1)
+    except Exception as exc:  # pragma: no cover - unexpected failure
+        _startup_error = f"unexpected error while waiting for tables: {exc}"
+        print(_startup_error, file=sys.stderr)
+        os._exit(1)
+
+
+threading.Thread(target=_wait_for_readiness, name="table-readiness-waiter", daemon=True).start()
 
 
 if __name__ == "__main__":
