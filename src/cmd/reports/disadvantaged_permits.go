@@ -457,15 +457,14 @@ func quoteIdentifier(name string) string {
 	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
 
-func WaitForTablesReady(ctx context.Context, db *sql.DB, pollInterval time.Duration, tables ...string) error {
+func WaitForTablesReady(ctx context.Context, db *sql.DB, initialDelay time.Duration, pollInterval time.Duration, tables ...string) error {
 	if db == nil {
 		return fmt.Errorf("db connection is nil")
 	}
 
-	const initialReadinessDelay = 4 * time.Minute
-	if initialReadinessDelay > 0 {
-		log.Printf("waiting %s before checking source table readiness", initialReadinessDelay)
-		timer := time.NewTimer(initialReadinessDelay)
+	if initialDelay > 0 {
+		log.Printf("waiting %s before checking source table readiness", initialDelay)
+		timer := time.NewTimer(initialDelay)
 		defer timer.Stop()
 
 		select {

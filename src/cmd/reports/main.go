@@ -1,26 +1,32 @@
 ﻿package main
 
 import (
-    "context"
-    "fmt"
-    "log"
-    "os"
-    "os/signal"
-    "path/filepath"
-    "strings"
-    "syscall"
-    "time"
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
 
     "github.com/joho/godotenv"
     _ "github.com/lib/pq"
 
-    "github.com/ahbreck/Chicago_BI/shared"
+	"github.com/ahbreck/Chicago_BI/shared"
+)
+
+const (
+	defaultStartupDelayMinutes = 4
+	startupDelayEnvKey         = "STARTUP_DELAY_MINUTES"
 )
 
 func main() {
-    if err := godotenv.Load(); err != nil {
-        log.Fatalf("error loading .env file: %v", err)
-    }
+	if err := godotenv.Load(); err != nil {
+		log.Fatalf("error loading .env file: %v", err)
+	}
 
     projectRoot, err := findProjectRoot()
     if err != nil {
@@ -45,15 +51,16 @@ func main() {
     ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
     defer stop()
 
-    log.Print("ensuring spatial datasets are available")
-    if _, err := shared.EnsureSpatialDatasets(ctx, shared.DefaultSpatialDatasets...); err != nil {
-        log.Fatalf("failed to prepare spatial datasets: %v", err)
-    }
+	log.Print("ensuring spatial datasets are available")
+	if _, err := shared.EnsureSpatialDatasets(ctx, shared.DefaultSpatialDatasets...); err != nil {
+		log.Fatalf("failed to prepare spatial datasets: %v", err)
+	}
 
-    log.Print("waiting for source datasets before starting report refresh loop")
-    if err := WaitForTablesReady(ctx, db, time.Minute, SourceTables...); err != nil {
-        log.Fatalf("failed to verify disadvantaged report dependencies: %v", err)
-    }
+	startupDelay := startupDelayDuration()
+	log.Print("waiting for source datasets before starting report refresh loop")
+	if err := WaitForTablesReady(ctx, db, startupDelay, time.Minute, SourceTables...); err != nil {
+		log.Fatalf("failed to verify disadvantaged report dependencies: %v", err)
+	}
 
     ticker := time.NewTicker(24 * time.Hour)
     defer ticker.Stop()
@@ -112,10 +119,10 @@ func findProjectRoot() (string, error) {
 }
 
 func ensureGeographyCrosswalks(projectRoot string) error {
-    required := []string{
-        filepath.Join("src", "data", "census_tract_to_zip_code.csv"),
-        filepath.Join("src", "data", "zip_code_to_community_area.csv"),
-        filepath.Join("src", "data", "community_area_to_zip_code.csv"),
+	required := []string{
+		filepath.Join("src", "data", "census_tract_to_zip_code.csv"),
+		filepath.Join("src", "data", "zip_code_to_community_area.csv"),
+		filepath.Join("src", "data", "community_area_to_zip_code.csv"),
     }
 
     var missing []string
@@ -136,7 +143,27 @@ func ensureGeographyCrosswalks(projectRoot string) error {
             "required geography crosswalk files missing or empty: %s. run 'python scripts/build_geography_maps.py' to generate them",
             strings.Join(missing, ", "),
         )
-    }
+	}
 
-    return nil
+	return nil
+}
+
+func startupDelayDuration() time.Duration {
+	raw := strings.TrimSpace(os.Getenv(startupDelayEnvKey))
+	if raw == "" {
+		return time.Duration(defaultStartupDelayMinutes) * time.Minute
+	}
+
+	minutes, err := strconv.Atoi(raw)
+	if err != nil {
+		log.Printf("invalid %s value %q; defaulting to %d minutes", startupDelayEnvKey, raw, defaultStartupDelayMinutes)
+		return time.Duration(defaultStartupDelayMinutes) * time.Minute
+	}
+
+	if minutes < 0 {
+		log.Printf("%s is negative (%d); defaulting to %d minutes", startupDelayEnvKey, minutes, defaultStartupDelayMinutes)
+		return time.Duration(defaultStartupDelayMinutes) * time.Minute
+	}
+
+	return time.Duration(minutes) * time.Minute
 }

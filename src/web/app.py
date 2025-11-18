@@ -18,6 +18,7 @@ DEFAULT_LIMIT = 100
 MAX_LIMIT = 500
 TABLE_CHECK_TIMEOUT = int(os.getenv("TABLE_CHECK_TIMEOUT", "240"))
 TABLE_CHECK_INTERVAL = int(os.getenv("TABLE_CHECK_INTERVAL", "3"))
+DEFAULT_STARTUP_DELAY_MINUTES = 4
 REQUIRED_TABLES = list(ALLOWED_TABLES.keys())
 _tables_ready = False
 
@@ -63,6 +64,27 @@ def sanitize_pagination() -> tuple[int, int]:
     return limit, offset
 
 
+def _startup_delay_seconds() -> int:
+    raw_value = os.getenv("STARTUP_DELAY_MINUTES", str(DEFAULT_STARTUP_DELAY_MINUTES)).strip()
+    try:
+        minutes = int(raw_value)
+    except ValueError:
+        print(
+            f"Invalid STARTUP_DELAY_MINUTES={raw_value!r}; defaulting to {DEFAULT_STARTUP_DELAY_MINUTES} minutes",
+            file=sys.stderr,
+        )
+        minutes = DEFAULT_STARTUP_DELAY_MINUTES
+
+    if minutes < 0:
+        print(
+            f"STARTUP_DELAY_MINUTES is negative ({minutes}); defaulting to {DEFAULT_STARTUP_DELAY_MINUTES} minutes",
+            file=sys.stderr,
+        )
+        minutes = DEFAULT_STARTUP_DELAY_MINUTES
+
+    return minutes * 60
+
+
 def missing_required_tables() -> list[str]:
     with psycopg2.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
@@ -79,9 +101,16 @@ def missing_required_tables() -> list[str]:
             return [name for name in REQUIRED_TABLES if name not in existing]
 
 
-def wait_for_required_tables():
+def wait_for_required_tables(startup_delay_seconds: int = 0):
     """Block startup until required tables exist (bounded retry)."""
     global _tables_ready
+    if startup_delay_seconds > 0:
+        print(
+            f"Waiting {startup_delay_seconds} seconds before checking for required tables...",
+            file=sys.stderr,
+        )
+        time.sleep(startup_delay_seconds)
+
     deadline = time.time() + TABLE_CHECK_TIMEOUT
     last_error = None
     while time.time() < deadline:
@@ -151,8 +180,9 @@ def readiness():
     return {"ready": _tables_ready}, (200 if _tables_ready else 503)
 
 
+startup_delay_seconds = _startup_delay_seconds()
 try:
-    wait_for_required_tables()
+    wait_for_required_tables(startup_delay_seconds=startup_delay_seconds)
 except RuntimeError as exc:  # pragma: no cover - startup failure path
     print(str(exc), file=sys.stderr)
     sys.exit(1)
