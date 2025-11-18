@@ -64,19 +64,10 @@ func CreateDisadvantagedReport(db *sql.DB) error {
 	disadvantagedPermitsIdent := quoteIdentifier(disadvantagedPermitsTable)
 	loanEligibilityPermitsIdent := quoteIdentifier(loanEligibilityPermits)
 
-	if err := ensurePostGISEnabled(tx); err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	statements := []string{
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, disadvantagedPermitsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, disadvantagedPermitsIdent, buildingPermitsIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN point geometry(Point, 4326)`, disadvantagedPermitsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN zip_code VARCHAR(9) DEFAULT ''`, disadvantagedPermitsIdent),
-		fmt.Sprintf(`UPDATE %s
-		SET point = ST_SetSRID(ST_MakePoint("longitude", "latitude"), 4326)
-		WHERE "longitude" IS NOT NULL AND "latitude" IS NOT NULL`, disadvantagedPermitsIdent),
 		fmt.Sprintf(`ALTER TABLE %s
                         ADD COLUMN top_5_poverty BOOLEAN DEFAULT FALSE,
                         ADD COLUMN top_5_unemployment BOOLEAN DEFAULT FALSE,
@@ -405,28 +396,6 @@ func loadCommunityAreaZipCodes() (map[int]string, error) {
 	}
 
 	return areaZipMap, nil
-}
-
-func ensurePostGISEnabled(tx *sql.Tx) error {
-	if tx == nil {
-		return fmt.Errorf("transaction is nil")
-	}
-
-	const availabilityQuery = `SELECT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'postgis')`
-	var available bool
-	if err := tx.QueryRow(availabilityQuery).Scan(&available); err != nil {
-		return fmt.Errorf("failed to check for postgis extension: %w", err)
-	}
-
-	if !available {
-		return fmt.Errorf("postgis extension is not available on this database instance; please install it before generating the disadvantaged report")
-	}
-
-	if _, err := tx.Exec(`CREATE EXTENSION IF NOT EXISTS postgis`); err != nil {
-		return fmt.Errorf("failed to enable postgis extension: %w", err)
-	}
-
-	return nil
 }
 
 func ensureTableReady(db *sql.DB, tableName string) error {
