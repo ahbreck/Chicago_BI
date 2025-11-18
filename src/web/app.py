@@ -103,6 +103,25 @@ def missing_required_tables() -> list[str]:
             return [name for name in REQUIRED_TABLES if name not in existing]
 
 
+def ensure_tables_ready() -> bool:
+    """Double-check that all required tables exist if the startup flag is still false."""
+    global _tables_ready
+    if _tables_ready:
+        return True
+
+    try:
+        missing = missing_required_tables()
+    except Exception as exc:  # pragma: no cover - defensive logging
+        print(f"Unable to verify required tables: {exc}", file=sys.stderr)
+        return False
+
+    if not missing:
+        _tables_ready = True
+        return True
+
+    return False
+
+
 def wait_for_required_tables(startup_delay_seconds: int = 0):
     """Block startup until required tables exist (bounded retry)."""
     global _tables_ready
@@ -135,11 +154,11 @@ def wait_for_required_tables(startup_delay_seconds: int = 0):
 @app.route("/")
 def index():
     status_message = None
-    if not _tables_ready:
+    if not ensure_tables_ready():
         if _startup_error:
             status_message = f"Startup failed: {_startup_error}"
         else:
-            status_message = "Data is still loading—please wait for the pipeline to finish its initial warmup."
+            status_message = "Data is still loading-please wait for the pipeline to finish its initial warmup."
 
     return render_template("index.html", tables=ALLOWED_TABLES, status_message=status_message)
 
@@ -154,11 +173,11 @@ def show_table(table_key: str):
     rows = []
     columns = []
     total_rows = 0
-    if not _tables_ready:
+    if not ensure_tables_ready():
         if _startup_error:
             error_message = f"Startup failed: {_startup_error}"
         else:
-            error_message = "Data is still loading—please wait for the pipeline to finish its initial warmup."
+            error_message = "Data is still loading-please wait for the pipeline to finish its initial warmup."
     else:
         try:
             rows, columns, total_rows = fetch_table_rows(table_key, limit, offset)
@@ -192,7 +211,8 @@ def healthcheck():
 
 @app.route("/readyz")
 def readiness():
-    return {"ready": _tables_ready}, (200 if _tables_ready else 503)
+    ready = ensure_tables_ready()
+    return {"ready": ready}, (200 if ready else 503)
 
 
 startup_delay_seconds = _startup_delay_seconds()
