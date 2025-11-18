@@ -1,4 +1,4 @@
-x-app-build: &app-build
+﻿x-app-build: &app-build
   context: ..
   dockerfile: Dockerfile
   args:
@@ -61,6 +61,17 @@ services:
     volumes:
       - spatial-data:/app/data
       - ./.env.docker:/app/.env:ro
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../web
+    env_file:
+      - ./.env.docker
+    depends_on:
+      - db
+    ports:
+      - "8081:5000"
     restart: unless-stopped
 
 volumes:

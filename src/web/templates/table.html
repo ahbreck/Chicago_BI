@@ -1,0 +1,60 @@
+﻿{% extends "base.html" %}
+{% block content %}
+  <a href="/">&#8592; Back to all tables</a>
+  <h2>{{ table_name }}</h2>
+  <p><strong>Table:</strong> {{ table_key }} | <strong>Total rows:</strong> {{ total_rows }}</p>
+
+  <form method="get" style="margin-bottom: 1rem;">
+    <label>
+      Limit
+      <input type="number" name="limit" value="{{ limit }}" min="1" max="500">
+    </label>
+    <label>
+      Offset
+      <input type="number" name="offset" value="{{ offset }}" min="0">
+    </label>
+    <button type="submit">Update</button>
+  </form>
+
+  {% if error %}
+    <p role="alert">{{ error }}</p>
+  {% else %}
+    <div class="table-container">
+      <table role="grid">
+        <thead>
+          <tr>
+            {% for col in columns %}
+              <th scope="col">{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              {% for cell in row %}
+                <td>{{ cell }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+          {% if rows|length == 0 %}
+            <tr><td colspan="{{ columns|length }}">No data found.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <nav aria-label="Pagination" style="margin-top: 1rem; display: flex; gap: 1rem;">
+      {% if prev_offset is not none %}
+        <a href="?limit={{ limit }}&offset={{ prev_offset }}">Previous</a>
+      {% else %}
+        <span aria-disabled="true">Previous</span>
+      {% endif %}
+
+      {% if next_offset is not none %}
+        <a href="?limit={{ limit }}&offset={{ next_offset }}">Next</a>
+      {% else %}
+        <span aria-disabled="true">Next</span>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endblock %}

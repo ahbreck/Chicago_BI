@@ -1,6 +1,6 @@
-# Chicago_BI
+﻿# Chicago_BI
 
-Available at [https://github.com/ahbreck/Chicago_BI](https://github.com/ahbreck/Chicago_BI)
+Available at https://github.com/ahbreck/Chicago_BI
 
 Chicago_BI is a collection of Go microservices that downloads public data from the
 City of Chicago, populates a data lake, and then builds report tables using those source tables.
@@ -21,8 +21,7 @@ development dependencies on your machine.
 
 ## Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) 4.19 or
-  newer (or the Docker Engine/CLI + Docker Compose plugin)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) 4.19 or newer (or the Docker Engine/CLI + Docker Compose plugin)
 - At least 4 GB of available RAM
 
 ## Running the stack
@@ -35,10 +34,8 @@ development dependencies on your machine.
    docker compose -f src/docker/compose.yaml up --build
    ```
 
-3. Navigate to [http://localhost:8080](http://localhost:8080) to confirm that
-   the collectors microservice is running. The reports microservice runs in the
-   background, rebuilding the disadvantaged report every 24 hours after the
-   collectors finish populating their tables.
+3. Navigate to http://localhost:8080 to confirm that the collectors microservice is running. The reports microservice runs in the
+   background, rebuilding the disadvantaged report every 24 hours after the collectors finish populating their tables.
 
 4. Follow the logs to watch the data ingestion pipeline:
 
@@ -47,9 +44,7 @@ development dependencies on your machine.
    docker compose -f src/docker/compose.yaml logs -f docker-reports-1
    ```
 
-5. Navigate to [http://localhost:8085](http://localhost:8085) to access PgAdmin4 and log in with user@gmail.com
-  and SuperSecret (or whatever other credentials you set in the compose.yaml file). Then register the server to 
-  view the tables.
+5. Navigate to http://localhost:8085 to access PgAdmin4 and log in with user@gmail.com and SuperSecret (or whatever other credentials you set in the compose.yaml file). Then register the server to view the tables.
 
 6. Stop and remove the containers when you are finished:
 
@@ -57,21 +52,22 @@ development dependencies on your machine.
    docker compose -f src/docker/compose.yaml down
    ```
 
-   Use `docker compose -f src/docker/compose.yaml down -v` if you also want to
-   remove the persisted database volume.
+   Use `docker compose -f src/docker/compose.yaml down -v` if you also want to remove the persisted database volume.
+
+7. To browse the generated report tables in a browser, open http://localhost:8081. The Flask frontend lists the four report tables and lets you page through their rows.
 
 ### Included services
 
-| Service     | Description                                                                                  | Ports        |
-|-------------|----------------------------------------------------------------------------------------------|--------------|
+| Service     | Description                                                                                  | Ports         |
+|-------------|----------------------------------------------------------------------------------------------|---------------|
 | `db`        | PostgreSQL 16 with the PostGIS 3.4 extension pre-installed. Data files live in the named     | `5432` (host) |
-|             | volume `postgres-data`.                                                                      |              |
+|             | volume `postgres-data`.                                                                      |               |
 | `collectors`| Go service that orchestrates all dataset collectors and exposes a health/status endpoint.    | `8080`        |
 | `reports`   | Go service that waits for fresh source tables and rebuilds the disadvantaged report daily.   | N/A           |
 | `pgadmin4`  | PgAdmin4 web UI for viewing/managing the Postgres instance.                                  | `8085`        |
+| `frontend`  | Flask UI for browsing the report tables listed above.                                        | `8081`        |
 
-The collectors and reports Go services share the same image (see `Dockerfile`) and store spatial
-assets inside the named volume `spatial-data` mounted at `/app/data`.
+The collectors and reports Go services share the same image (see `Dockerfile`) and store spatial assets inside the named volume `spatial-data` mounted at `/app/data`.
 
 ### Useful commands
 
@@ -81,8 +77,7 @@ assets inside the named volume `spatial-data` mounted at `/app/data`.
   docker compose -f src/docker/compose.yaml up --build collectors
   ```
 
-- Run only the reports service (for example, after the collectors have filled
-  the database):
+- Run only the reports service (for example, after the collectors have filled the database):
 
   ```bash
   docker compose -f src/docker/compose.yaml up --build reports
@@ -102,18 +97,14 @@ assets inside the named volume `spatial-data` mounted at `/app/data`.
 
 ## Configuration reference
 
-Configuration is provided through the `src/docker/.env.docker` file, which is
-mounted into the runtime containers so the services can satisfy their
-`godotenv` requirement. The Compose file still lists the database environment
-variables.
+Configuration is provided through the `src/docker/.env.docker` file, which is mounted into the runtime containers so the services can satisfy their `godotenv` requirement. The Compose file still lists the database environment variables.
 
 ### Environment files and examples
 
 The tracked example files show the required environment variables and suggested defaults while keeping secrets
 out of Git (like the geocoding API key):
 
-- Use `src/docker/.env.docker.example` as the template for Docker runs. Copy it
-  to `src/docker/.env.docker` and fill in your values:
+- Use `src/docker/.env.docker.example` as the template for Docker runs. Copy it to `src/docker/.env.docker` and fill in your values:
 
   ```bash
   cp src/docker/.env.docker.example src/docker/.env.docker
@@ -126,8 +117,7 @@ out of Git (like the geocoding API key):
   cp src/.env.example src/.env
   ```
 
-Both `src/docker/.env.docker` and `src/.env` are listed in `.gitignore` so api keys stay private, 
-while the example files remain in version control for reference.
+Both `src/docker/.env.docker` and `src/.env` are listed in `.gitignore` so api keys stay private, while the example files remain in version control for reference.
 
 | Variable            | Description                                                                      |
 |---------------------|----------------------------------------------------------------------------------|
@@ -138,7 +128,7 @@ while the example files remain in version control for reference.
 | `POSTGRES_*`        | Standard PostgreSQL username, password, and database name for the PostGIS image. |
 
 The existing `src/.env.example` continues to serve as a template for
-non-containerized workflows—copy it to `src/.env` if you need a separate set of
+non-containerized workflows - copy it to `src/.env` if you need a separate set of
 values when running the Go binaries directly. Keeping the Docker-specific
 settings in `src/docker/.env.docker` prevents two different `.env` files from
 coexisting in the same directory.
@@ -147,13 +137,10 @@ coexisting in the same directory.
 
 ```
 .
-├── src                    # Original Go source code, including collectors and reports
-│   ├── Dockerfile         # Multi-stage build that compiles collectors and reports binaries
-│   ├── .dockerignore      # Build context exclusions for the Go image
-│   └── docker/            # Docker runtime assets that sit alongside the Go sources
-│       ├── compose.yaml   # Docker Compose stack with the database and Go services
-│       ├── .env.docker    # Default configuration used by dockerized services
-│       └── postgres/      # Postgres initialization scripts (PostGIS extension)
-└── ...                    # Repository metadata (LICENSE, README, etc.)
+`-- src                     # Go source, Docker assets, and the Flask frontend
+    |-- cmd                 # Collectors and reports entrypoints
+    |-- data                # Spatial data/location lookup files
+    |-- docker              # Docker Compose stack and Postgres init
+    |-- shared              # Shared Go packages
+    `-- web                 # Flask frontend for browsing report tables
 ```
-

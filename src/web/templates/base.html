@@ -1,0 +1,23 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chicago BI Frontend</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body { padding: 1rem; }
+    .table-container { overflow-x: auto; }
+    table td, table th { white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chicago BI Frontend</h1>
+    <p>Browse report tables populated by the pipeline.</p>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

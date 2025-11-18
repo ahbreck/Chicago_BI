@@ -1,0 +1,9 @@
+﻿{% extends "base.html" %}
+{% block content %}
+  <h2>Tables</h2>
+  <ul>
+    {% for key, name in tables.items() %}
+      <li><a href="/table/{{ key }}">{{ name }} ({{ key }})</a></li>
+    {% endfor %}
+  </ul>
+{% endblock %}
