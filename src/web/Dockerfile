@@ -12,4 +12,4 @@ COPY app.py ./
 COPY templates ./templates
 
 EXPOSE 5000
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--graceful-timeout", "30", "--keep-alive", "2", "app:app"]
