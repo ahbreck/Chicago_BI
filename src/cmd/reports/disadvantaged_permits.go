@@ -462,6 +462,19 @@ func WaitForTablesReady(ctx context.Context, db *sql.DB, pollInterval time.Durat
 		return fmt.Errorf("db connection is nil")
 	}
 
+	const initialReadinessDelay = 4 * time.Minute
+	if initialReadinessDelay > 0 {
+		log.Printf("waiting %s before checking source table readiness", initialReadinessDelay)
+		timer := time.NewTimer(initialReadinessDelay)
+		defer timer.Stop()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+
 	if pollInterval <= 0 {
 		pollInterval = 5 * time.Second
 	}
