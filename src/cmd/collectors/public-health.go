@@ -33,7 +33,7 @@ func GetUnemploymentRates(db *sql.DB) {
 	}
 
 	create_table := `CREATE TABLE IF NOT EXISTS "public_health" (
-		"community_area" VARCHAR(255) PRIMARY KEY,
+		"community_area" VARCHAR(2) PRIMARY KEY,
 		"below_poverty_level" FLOAT8,
 		"unemployment" FLOAT8,
 		"per_capita_income" FLOAT8

@@ -47,7 +47,7 @@ func GetBuildingPermits(db *sql.DB) {
 		"street_name"      VARCHAR(255),
 		"latitude"      FLOAT8,
 		"longitude"      FLOAT8,
-		"community_area" VARCHAR(255),
+		"community_area" VARCHAR(2),
 		"census_tract" VARCHAR(255)
 	);`
 

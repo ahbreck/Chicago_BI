@@ -1,17 +1,16 @@
 package main
 
 import (
+	"database/sql"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
-
-	"database/sql"
-	"encoding/csv"
-	"encoding/json"
-	"math/rand"
 
 	"github.com/kelvins/geocoder"
 	_ "github.com/lib/pq"
@@ -23,6 +22,8 @@ type TripRecord struct {
 	Trip_id                    string `json:"trip_id"`
 	Trip_start_timestamp       string `json:"trip_start_timestamp"`
 	Trip_end_timestamp         string `json:"trip_end_timestamp"`
+	Pickup_community_area      string `json:"pickup_community_area"`
+	Dropoff_community_area     string `json:"dropoff_community_area"`
 	Pickup_centroid_latitude   string `json:"pickup_centroid_latitude"`
 	Pickup_centroid_longitude  string `json:"pickup_centroid_longitude"`
 	Dropoff_centroid_latitude  string `json:"dropoff_centroid_latitude"`
@@ -54,6 +55,8 @@ func GetTaxiTrips(db *sql.DB) {
 						"pickup_centroid_longitude" DOUBLE PRECISION, 
 						"dropoff_centroid_latitude" DOUBLE PRECISION, 
 						"dropoff_centroid_longitude" DOUBLE PRECISION, 
+						"pickup_community_area" VARCHAR(2),
+						"dropoff_community_area" VARCHAR(2),
 						"pickup_zip_code" VARCHAR(9), 
 						"dropoff_zip_code" VARCHAR(9), 
 						"trip_type" VARCHAR(50),
@@ -91,7 +94,7 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 
 	// Build API URL dynamically
 	// For testing purposes, time range filter is set to limit data to Jan through March of 2022
-	url := fmt.Sprintf("https://data.cityofchicago.org/resource/%s.json?$limit=%d&$where=trip_start_timestamp%%20between%%20'2022-01-01T00:00:00'%%20and%%20'2022-03-31T23:59:59'", apiCode, limit)
+	url := fmt.Sprintf("https://data.cityofchicago.org/resource/%s.json?$select=trip_id,trip_start_timestamp,trip_end_timestamp,pickup_community_area,dropoff_community_area,pickup_centroid_latitude,pickup_centroid_longitude,dropoff_centroid_latitude,dropoff_centroid_longitude&$limit=%d&$where=trip_start_timestamp%%20between%%20'2022-01-01T00:00:00'%%20and%%20'2022-03-31T23:59:59'", apiCode, limit)
 
 	res, err := shared.FetchSlowAPI(url)
 	if err != nil {
@@ -105,17 +108,15 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 
 	insertedCount := 0
 	skippedCount := 0
-	var zipOptions []string
+	var communityZipMap map[string]string
 
 	if !useGeocoding {
 		var err error
-		zipOptions, err = loadZipCodeOptions()
+		communityZipMap, err = loadCommunityAreaZipCodes()
 		if err != nil {
-			fmt.Printf("Unable to load ZIP code options, defaulting to empty values: %v\n", err)
+			fmt.Printf("Unable to load community area ZIP code mapping, defaulting to empty values: %v\n", err)
 		}
 	}
-
-	randomZipPicker := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	for _, record := range taxi_trips_list {
 
@@ -123,11 +124,15 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 		// Any record that has messy/dirty/missing data we don't enter it in the data lake/table
 		fmt.Printf("record: %+v\n", record)
 
+		pickupCommunityRaw := strings.TrimSpace(record.Pickup_community_area)
+		dropoffCommunityRaw := strings.TrimSpace(record.Dropoff_community_area)
+
 		if record.Trip_id == "" ||
 			// if trip start/end timestamp doesn't have the length of 23 chars in the format "0000-00-00T00:00:00.000"
 			// skip this record
 			len(record.Trip_start_timestamp) < 23 ||
-			len(record.Trip_end_timestamp) < 23 { //||
+			len(record.Trip_end_timestamp) < 23 ||
+			(pickupCommunityRaw == "" && dropoffCommunityRaw == "") { //||
 			//record.Pickup_centroid_latitude == "" ||
 			//record.Pickup_centroid_longitude == "" ||
 			//record.Dropoff_centroid_latitude == "" ||
@@ -141,6 +146,16 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 		pickup_centroid_longitude_float, _ := strconv.ParseFloat(record.Pickup_centroid_longitude, 64)
 		dropoff_centroid_latitude_float, _ := strconv.ParseFloat(record.Dropoff_centroid_latitude, 64)
 		dropoff_centroid_longitude_float, _ := strconv.ParseFloat(record.Dropoff_centroid_longitude, 64)
+
+		pickupCommunityArea := sql.NullString{}
+		if pickupCommunityRaw != "" {
+			pickupCommunityArea = sql.NullString{String: pickupCommunityRaw, Valid: true}
+		}
+
+		dropoffCommunityArea := sql.NullString{}
+		if dropoffCommunityRaw != "" {
+			dropoffCommunityArea = sql.NullString{String: dropoffCommunityRaw, Valid: true}
+		}
 
 		// Default ZIPs to empty strings
 		pickup_zip_code := ""
@@ -168,13 +183,21 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 			if len(dropoff_address_list) > 0 {
 				dropoff_zip_code = dropoff_address_list[0].PostalCode
 			}
-		} else if len(zipOptions) > 0 {
-			pickup_zip_code = zipOptions[randomZipPicker.Intn(len(zipOptions))]
-			dropoff_zip_code = zipOptions[randomZipPicker.Intn(len(zipOptions))]
+		} else if len(communityZipMap) > 0 {
+			if pickupCommunityArea.Valid {
+				if zip, ok := communityZipMap[pickupCommunityArea.String]; ok {
+					pickup_zip_code = zip
+				}
+			}
+			if dropoffCommunityArea.Valid {
+				if zip, ok := communityZipMap[dropoffCommunityArea.String]; ok {
+					dropoff_zip_code = zip
+				}
+			}
 		}
 
-		sql := `INSERT INTO taxi_trips ("trip_id", "trip_start_timestamp", "trip_end_timestamp", "pickup_centroid_latitude", "pickup_centroid_longitude", "dropoff_centroid_latitude", "dropoff_centroid_longitude", "pickup_zip_code", 
-			"dropoff_zip_code", "trip_type") values($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		sql := `INSERT INTO taxi_trips ("trip_id", "trip_start_timestamp", "trip_end_timestamp", "pickup_centroid_latitude", "pickup_centroid_longitude", "dropoff_centroid_latitude", "dropoff_centroid_longitude", "pickup_community_area", "dropoff_community_area", "pickup_zip_code", 
+			"dropoff_zip_code", "trip_type") values($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			ON CONFLICT (trip_id) DO NOTHING`
 
 		_, err = db.Exec(
@@ -186,6 +209,8 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 			pickup_centroid_longitude_float,
 			dropoff_centroid_latitude_float,
 			dropoff_centroid_longitude_float,
+			pickupCommunityArea,
+			dropoffCommunityArea,
 			pickup_zip_code,
 			dropoff_zip_code,
 			tripType)
@@ -201,9 +226,9 @@ func GetTrips(db *sql.DB, tripType string, apiCode string, limit int, useGeocodi
 
 }
 
-// findZipCodeDataPath walks up from the current working directory until it finds the zip code CSV.
-func findZipCodeDataPath() (string, error) {
-	relPath := filepath.Join("src", "data", "zip_code_to_community_area.csv")
+// findCommunityZipDataPath walks up from the current working directory until it finds the community area to ZIP code CSV.
+func findCommunityZipDataPath() (string, error) {
+	relPath := filepath.Join("src", "data", "community_area_to_zip_code.csv")
 
 	seen := map[string]struct{}{}
 	searchFrom := func(start string) (string, bool) {
@@ -247,39 +272,47 @@ func findZipCodeDataPath() (string, error) {
 	return "", fmt.Errorf("could not locate %s", relPath)
 }
 
-// loadZipCodeOptions reads the zip codes from the crosswalk CSV and returns the list of possible values.
-func loadZipCodeOptions() ([]string, error) {
-	csvPath, err := findZipCodeDataPath()
+// loadCommunityAreaZipCodes reads the community area to ZIP code mapping.
+func loadCommunityAreaZipCodes() (map[string]string, error) {
+	csvPath, err := findCommunityZipDataPath()
 	if err != nil {
 		return nil, err
 	}
 
 	file, err := os.Open(csvPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open zip code file: %w", err)
+		return nil, fmt.Errorf("failed to open community area zip code file: %w", err)
 	}
 	defer file.Close()
 
 	reader := csv.NewReader(file)
 	records, err := reader.ReadAll()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read zip code file: %w", err)
+		return nil, fmt.Errorf("failed to read community area zip code file: %w", err)
 	}
 
-	var zips []string
+	areaZipMap := make(map[string]string, len(records))
 	for i, row := range records {
-		if len(row) == 0 {
+		if len(row) < 2 {
 			continue
 		}
-		if i == 0 && row[0] == "zip_code" {
+		communityArea := strings.TrimSpace(row[0])
+		zip := strings.TrimSpace(row[1])
+
+		if i == 0 && strings.EqualFold(communityArea, "community_area") {
 			continue
 		}
-		zips = append(zips, row[0])
+
+		if communityArea == "" || zip == "" {
+			continue
+		}
+
+		areaZipMap[communityArea] = zip
 	}
 
-	if len(zips) == 0 {
-		return nil, fmt.Errorf("no zip codes found in %s", csvPath)
+	if len(areaZipMap) == 0 {
+		return nil, fmt.Errorf("no community area zip codes found in %s", csvPath)
 	}
 
-	return zips, nil
+	return areaZipMap, nil
 }
