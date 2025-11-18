@@ -197,9 +197,9 @@ SET per_capita_income = d.per_capita_income
 FROM %s d
 WHERE lp."zip_code" <> '' AND lp."zip_code" = d."zip_code"`, loanEligIdent, disadvantagedIdent),
 		fmt.Sprintf(`DELETE FROM %s WHERE per_capita_income IS NULL OR per_capita_income >= 30000`, loanEligIdent),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN total_permits_for_zip INTEGER DEFAULT 0`, loanEligIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN new_const_permits_for_zip INTEGER DEFAULT 0`, loanEligIdent),
 		fmt.Sprintf(`UPDATE %s lp
-SET total_permits_for_zip = counts.permit_count
+SET new_const_permits_for_zip = counts.permit_count
 FROM (
 	SELECT "zip_code", COUNT(*) AS permit_count
 	FROM %s
@@ -208,16 +208,24 @@ FROM (
 ) counts
 WHERE lp."zip_code" = counts."zip_code"`, loanEligIdent, loanEligIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN loan_eligibility BOOLEAN DEFAULT FALSE`, loanEligIdent),
-		fmt.Sprintf(`UPDATE %s
+		fmt.Sprintf(`UPDATE %s lp
 SET loan_eligibility = TRUE
-WHERE "zip_code" IN (
-	SELECT "zip_code"
+FROM (
+	SELECT "zip_code", COUNT(*) AS permit_count
 	FROM %s
 	WHERE "zip_code" <> ''
 	GROUP BY "zip_code"
-	ORDER BY COUNT(*) ASC
-	LIMIT 1
-)`, loanEligIdent, loanEligIdent),
+) counts
+WHERE lp."zip_code" = counts."zip_code"
+	AND counts.permit_count = (
+		SELECT MIN(permit_count)
+		FROM (
+			SELECT COUNT(*) AS permit_count
+			FROM %s
+			WHERE "zip_code" <> ''
+			GROUP BY "zip_code"
+		) permit_counts
+	)`, loanEligIdent, loanEligIdent, loanEligIdent),
 	}
 
 	for _, statement := range statements {
