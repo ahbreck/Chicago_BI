@@ -1,0 +1,78 @@
+steps:
+  # pgAdmin: pull, tag, push, deploy (public, attaches to Cloud SQL)
+  - name: "gcr.io/cloud-builders/docker"
+    args: ['pull', 'dpage/pgadmin4:8']
+  - name: "gcr.io/cloud-builders/docker"
+    args: ['tag', 'dpage/pgadmin4:8', 'gcr.io/chicago-bi-478013/pgadmin']
+  - name: "gcr.io/cloud-builders/docker"
+    args: ['push', 'gcr.io/chicago-bi-478013/pgadmin']
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args: [
+      'run', 'deploy', 'pg-admin',
+      '--image', 'gcr.io/chicago-bi-478013/pgadmin',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--port', '80',
+      '--allow-unauthenticated',
+      '--add-cloudsql-instances', 'chicago-bi-478013:us-central1:mypostgres',
+      '--set-env-vars', 'PGADMIN_DEFAULT_EMAIL=user@gmail.com,PGADMIN_DEFAULT_PASSWORD=SuperSecret,PGADMIN_CONFIG_SERVER_MODE=True'
+    ]
+
+  # Go backend image build/push (collectors + reports binaries in one image)
+  - name: "gcr.io/cloud-builders/docker"
+    args: ['build', '-t', 'gcr.io/chicago-bi-478013/go-microservice', '.']
+  - name: "gcr.io/cloud-builders/docker"
+    args: ['push', 'gcr.io/chicago-bi-478013/go-microservice']
+
+  # Collectors service (public)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args: [
+      'run', 'deploy', 'go-microservice',
+      '--image', 'gcr.io/chicago-bi-478013/go-microservice',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--port', '8080',
+      '--allow-unauthenticated',
+      '--add-cloudsql-instances', 'chicago-bi-478013:us-central1:mypostgres',
+      '--set-env-vars', 'DATABASE_URL=user=postgres dbname=chicago_business_intelligence password=root host=/cloudsql/chicago-bi-478013:us-central1:mypostgres sslmode=disable port=5432,PROJECT_ID=chicago-bi-478013,SPATIAL_DATA_DIR=/app/data/spatial,USE_GEOCODING=false,API_KEY=your-geocoder-api-key'
+    ]
+
+  # Reports service (same image, different entrypoint, public for health checks)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args: [
+      'run', 'deploy', 'reports',
+      '--image', 'gcr.io/chicago-bi-478013/go-microservice',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--port', '8080',
+      '--allow-unauthenticated',
+      '--command', '/usr/local/bin/reports',
+      '--add-cloudsql-instances', 'chicago-bi-478013:us-central1:mypostgres',
+      '--set-env-vars', 'DATABASE_URL=user=postgres dbname=chicago_business_intelligence password=root host=/cloudsql/chicago-bi-478013:us-central1:mypostgres sslmode=disable port=5432,PROJECT_ID=chicago-bi-478013,SPATIAL_DATA_DIR=/app/data/spatial,STARTUP_DELAY_MINUTES=4,USE_GEOCODING=false,API_KEY=your-geocoder-api-key'
+    ]
+
+  # Frontend build/push/deploy (public)
+  - name: "gcr.io/cloud-builders/docker"
+    args: ['build', '-t', 'gcr.io/chicago-bi-478013/frontend', './web']
+  - name: "gcr.io/cloud-builders/docker"
+    args: ['push', 'gcr.io/chicago-bi-478013/frontend']
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args: [
+      'run', 'deploy', 'frontend',
+      '--image', 'gcr.io/chicago-bi-478013/frontend',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--port', '5000',
+      '--allow-unauthenticated',
+      '--add-cloudsql-instances', 'chicago-bi-478013:us-central1:mypostgres',
+      '--set-env-vars', 'DATABASE_URL=user=postgres dbname=chicago_business_intelligence password=root host=/cloudsql/chicago-bi-478013:us-central1:mypostgres sslmode=disable port=5432,PROJECT_ID=chicago-bi-478013,STARTUP_DELAY_MINUTES=4,SPATIAL_DATA_DIR=/app/data/spatial'
+    ]
+
+images:
+- gcr.io/chicago-bi-478013/go-microservice
+- gcr.io/chicago-bi-478013/pgadmin
+- gcr.io/chicago-bi-478013/frontend

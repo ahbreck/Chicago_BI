@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -12,8 +13,10 @@ import (
 	"syscall"
 	"time"
 
-    "github.com/joho/godotenv"
-    _ "github.com/lib/pq"
+	"errors"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 
 	"github.com/ahbreck/Chicago_BI/shared"
 )
@@ -62,7 +65,15 @@ func main() {
 		log.Fatalf("failed to verify disadvantaged report dependencies: %v", err)
 	}
 
-    ticker := time.NewTicker(24 * time.Hour)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+		log.Printf("defaulting to port %s", port)
+	}
+
+	startHTTPServer(ctx, port)
+
+	ticker := time.NewTicker(24*time.Hour)
     defer ticker.Stop()
 
     for {
@@ -93,6 +104,42 @@ func main() {
         case <-ticker.C:
         }
     }
+}
+
+func startHTTPServer(ctx context.Context, port string) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("reports service is running"))
+	})
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ready"))
+	})
+
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("reports http server shutdown error: %v", err)
+		}
+	}()
+
+	go func() {
+		log.Printf("reports HTTP server listening on :%s", port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("reports http server failed: %v", err)
+		}
+	}()
 }
 
 func findProjectRoot() (string, error) {
