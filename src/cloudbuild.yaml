@@ -80,3 +80,6 @@ images:
 - gcr.io/chicago-bi-478013/go-microservice
 - gcr.io/chicago-bi-478013/pgadmin
 - gcr.io/chicago-bi-478013/frontend
+
+options:
+  logging: CLOUD_LOGGING_ONLY
