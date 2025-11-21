@@ -2,8 +2,8 @@
 
 Available at https://github.com/ahbreck/Chicago_BI
 
-Chicago_BI is a collection of Go microservices that downloads public data from the
-City of Chicago, populates a data lake, and then builds report tables using those source tables.
+Chicago_BI is a collection of Go microservices (collectors + reports) and a Flask frontend that downloads public data from the
+City of Chicago, populates a data lake, builds report tables, and lets you browse them in a browser.
 
 The report tables satisfy 6 requirements as follows:
 - "req_1a_covid_alerts_drivers"
@@ -16,15 +16,68 @@ The report tables satisfy 6 requirements as follows:
 - "req_5_disadv_perm"
 - "req_6_loan_elig_permits"
 
-This repository is set up to run with Docker so you can run it without installing any
-development dependencies on your machine.
+You can run the stack locally with Docker for development, or deploy it to Google Cloud with Cloud Build, Cloud Run, Cloud SQL, and Cloud Scheduler.
+
+## Cloud deployment (Cloud Build + Cloud Run)
+
+The file `src/cloudbuild.yaml` builds/pushes the Go backend image, the Flask frontend image, and the pgAdmin helper, then deploys four Cloud Run services (collectors, reports, frontend, pg-admin). Those services attach to a Cloud SQL instance via the connection name you configure in the YAML.
+
+### Prerequisites
+
+- A Google Cloud project (set with `gcloud config set project <PROJECT_ID>`)
+- Cloud SQL Postgres instance (e.g., `gcloud sql instances create mypostgres --database-version=POSTGRES_14 --cpu=2 --memory=7680MB --region=us-central1`)
+- Cloud Build enabled
+- Cloud Run API enabled
+- (Recommended) A dedicated service account for Cloud Scheduler to call Cloud Run (`roles/run.invoker`)
+
+Secrets such as database passwords or API keys should be stored in Secret Manager or substituted into `src/cloudbuild.yaml` before running a build.
+
+### Deploy via Cloud Build
+
+From the repository root (so `src/cloudbuild.yaml` is accessible), run:
+
+```bash
+gcloud builds submit --config src/cloudbuild.yaml src
+```
+
+This command uses the `src` directory as the build context, creates/pushes the images, and updates the Cloud Run services with `--min-instances 0` so they scale to zero when idle.
+
+If you connect Cloud Build to GitHub, set the trigger’s build-file location to `src/cloudbuild.yaml`.
+
+### Schedule collectors and reports
+
+Collectors and reports now support a `RUN_ONCE=true` mode. Create Cloud Scheduler jobs that invoke the service URLs on the cadence you prefer (example: collectors at 09:00, reports at 10:00 Central):
+
+```bash
+gcloud scheduler jobs create http collectors-daily \
+  --schedule="0 9 * * *" \
+  --uri="https://<collectors-service-url>/" \
+  --http-method=GET \
+  --oidc-service-account-email="scheduler-invoker@PROJECT_ID.iam.gserviceaccount.com"
+
+gcloud scheduler jobs create http reports-daily \
+  --schedule="0 10 * * *" \
+  --uri="https://<reports-service-url>/" \
+  --http-method=GET \
+  --oidc-service-account-email="scheduler-invoker@PROJECT_ID.iam.gserviceaccount.com"
+```
+
+Replace `PROJECT_ID` and the URLs with values from `gcloud run services describe <service> --region us-central1 --format="value(status.url)"`.
+
+### Frontend service
+
+The Flask UI lives in `src/web` and is deployed as the `frontend` Cloud Run service. It waits for the collectors/reports tables to exist, exposes `/` for browsing tables, `/healthz` for liveness, and `/readyz` for readiness. The service uses the same Cloud SQL connection string as the Go services.
+
+## Local Docker workflow (fallback)
+
+You can still run everything locally without installing Go or Python dependencies, which is useful for debugging or when you want a fully offline setup.
 
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) 4.19 or newer (or the Docker Engine/CLI + Docker Compose plugin)
 - At least 4 GB of available RAM
 
-## Running the stack
+### Running the stack locally
 
 1. Copy `src/docker/.env.docker.example` as `src/docker/.env.docker` and adjust any values you want to override
    (database credentials, exposed ports, project name, etc.). See "environment files and examples" section below.
@@ -56,7 +109,7 @@ development dependencies on your machine.
 
 7. To browse the generated report tables in a browser, open http://localhost:8081. The Flask frontend lists the four report tables and lets you page through their rows.
 
-### Included services
+### Included services (Docker)
 
 | Service     | Description                                                                                  | Ports         |
 |-------------|----------------------------------------------------------------------------------------------|---------------|
