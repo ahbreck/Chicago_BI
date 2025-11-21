@@ -15,6 +15,7 @@ steps:
       '--platform', 'managed',
       '--port', '80',
       '--allow-unauthenticated',
+      '--min-instances', '0',
       '--add-cloudsql-instances', 'chicago-bi-478013:us-central1:mypostgres',
       '--set-env-vars', 'PGADMIN_DEFAULT_EMAIL=user@gmail.com,PGADMIN_DEFAULT_PASSWORD=SuperSecret,PGADMIN_CONFIG_SERVER_MODE=True'
     ]
@@ -35,8 +36,9 @@ steps:
       '--platform', 'managed',
       '--port', '8080',
       '--allow-unauthenticated',
+      '--min-instances', '0',
       '--add-cloudsql-instances', 'chicago-bi-478013:us-central1:mypostgres',
-      '--set-env-vars', 'DATABASE_URL=user=postgres dbname=chicago_business_intelligence password=root host=/cloudsql/chicago-bi-478013:us-central1:mypostgres sslmode=disable port=5432,PROJECT_ID=chicago-bi-478013,SPATIAL_DATA_DIR=/app/data/spatial,USE_GEOCODING=false,API_KEY=your-geocoder-api-key'
+      '--set-env-vars', 'DATABASE_URL=user=postgres dbname=chicago_business_intelligence password=root host=/cloudsql/chicago-bi-478013:us-central1:mypostgres sslmode=disable port=5432,PROJECT_ID=chicago-bi-478013,SPATIAL_DATA_DIR=/app/data/spatial,USE_GEOCODING=false,API_KEY=your-geocoder-api-key,RUN_ONCE=true'
     ]
 
   # Reports service (same image, different entrypoint, public for health checks)
@@ -49,9 +51,10 @@ steps:
       '--platform', 'managed',
       '--port', '8080',
       '--allow-unauthenticated',
+      '--min-instances', '0',
       '--command', '/usr/local/bin/reports',
       '--add-cloudsql-instances', 'chicago-bi-478013:us-central1:mypostgres',
-      '--set-env-vars', 'DATABASE_URL=user=postgres dbname=chicago_business_intelligence password=root host=/cloudsql/chicago-bi-478013:us-central1:mypostgres sslmode=disable port=5432,PROJECT_ID=chicago-bi-478013,SPATIAL_DATA_DIR=/app/data/spatial,STARTUP_DELAY_MINUTES=4,USE_GEOCODING=false,API_KEY=your-geocoder-api-key'
+      '--set-env-vars', 'DATABASE_URL=user=postgres dbname=chicago_business_intelligence password=root host=/cloudsql/chicago-bi-478013:us-central1:mypostgres sslmode=disable port=5432,PROJECT_ID=chicago-bi-478013,SPATIAL_DATA_DIR=/app/data/spatial,STARTUP_DELAY_MINUTES=4,USE_GEOCODING=false,API_KEY=your-geocoder-api-key,RUN_ONCE=true'
     ]
 
   # Frontend build/push/deploy (public)
@@ -68,6 +71,7 @@ steps:
       '--platform', 'managed',
       '--port', '5000',
       '--allow-unauthenticated',
+      '--min-instances', '0',
       '--add-cloudsql-instances', 'chicago-bi-478013:us-central1:mypostgres',
       '--set-env-vars', 'DATABASE_URL=user=postgres dbname=chicago_business_intelligence password=root host=/cloudsql/chicago-bi-478013:us-central1:mypostgres sslmode=disable port=5432,PROJECT_ID=chicago-bi-478013,STARTUP_DELAY_MINUTES=4,SPATIAL_DATA_DIR=/app/data/spatial'
     ]

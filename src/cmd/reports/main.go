@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"errors"
+	"strings"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -31,28 +32,30 @@ func main() {
 		log.Fatalf("error loading .env file: %v", err)
 	}
 
-    projectRoot, err := findProjectRoot()
-    if err != nil {
-        log.Fatalf("failed to determine project root: %v", err)
-    }
+	runOnce := strings.EqualFold(os.Getenv("RUN_ONCE"), "true")
 
-    if err := ensureGeographyCrosswalks(projectRoot); err != nil {
-        log.Fatalf("%v", err)
-    }
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		log.Fatalf("failed to determine project root: %v", err)
+	}
 
-    connStr := os.Getenv("DATABASE_URL")
-    if connStr == "" {
-        connStr = shared.DefaultConnectionString
-    }
+	if err := ensureGeographyCrosswalks(projectRoot); err != nil {
+		log.Fatalf("%v", err)
+	}
 
-    db, err := shared.OpenDatabase(connStr)
-    if err != nil {
-        log.Fatalf("failed to connect to database: %v", err)
-    }
-    defer db.Close()
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		connStr = shared.DefaultConnectionString
+	}
 
-    ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-    defer stop()
+	db, err := shared.OpenDatabase(connStr)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	log.Print("ensuring spatial datasets are available")
 	if _, err := shared.EnsureSpatialDatasets(ctx, shared.DefaultSpatialDatasets...); err != nil {
@@ -73,37 +76,47 @@ func main() {
 
 	startHTTPServer(ctx, port)
 
-	ticker := time.NewTicker(24*time.Hour)
-    defer ticker.Stop()
+	runReports := func() {
+		log.Print("building covid category report")
+		if err := CreateCovidCategoryReport(db); err != nil {
+			log.Printf("failed to build covid category report: %v", err)
+		} else {
+			log.Print("covid category report refreshed")
+		}
 
-    for {
-        select {
-        case <-ctx.Done():
-            log.Print("reports microservice shutting down")
-            return
-        default:
-        }
+		log.Print("building disadvantaged report")
+		if err := CreateDisadvantagedReport(db); err != nil {
+			log.Printf("failed to build disadvantaged report: %v", err)
+		} else {
+			log.Print("disadvantaged report refreshed")
+		}
+	}
 
-        log.Print("building covid category report")
-        if err := CreateCovidCategoryReport(db); err != nil {
-            log.Printf("failed to build covid category report: %v", err)
-        } else {
-            log.Print("covid category report refreshed")
-        }
+	if runOnce {
+		runReports()
+		log.Print("RUN_ONCE enabled; exiting reports after single run")
+		return
+	}
 
-        log.Print("building disadvantaged report")
-        if err := CreateDisadvantagedReport(db); err != nil {
-            log.Printf("failed to build disadvantaged report: %v", err)
-        } else {
-            log.Print("disadvantaged report refreshed")
-        }
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
 
-        select {
-        case <-ctx.Done():
-            return
-        case <-ticker.C:
-        }
-    }
+	for {
+		select {
+		case <-ctx.Done():
+			log.Print("reports microservice shutting down")
+			return
+		default:
+		}
+
+		runReports()
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func startHTTPServer(ctx context.Context, port string) {
@@ -143,26 +156,26 @@ func startHTTPServer(ctx context.Context, port string) {
 }
 
 func findProjectRoot() (string, error) {
-    start, err := os.Getwd()
-    if err != nil {
-        return "", fmt.Errorf("failed to get working directory: %w", err)
-    }
+	start, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get working directory: %w", err)
+	}
 
-    dir := start
-    for {
-        spatialDir := filepath.Join(dir, "src", "data", "spatial")
-        if info, err := os.Stat(spatialDir); err == nil && info.IsDir() {
-            return dir, nil
-        }
+	dir := start
+	for {
+		spatialDir := filepath.Join(dir, "src", "data", "spatial")
+		if info, err := os.Stat(spatialDir); err == nil && info.IsDir() {
+			return dir, nil
+		}
 
-        parent := filepath.Dir(dir)
-        if parent == dir {
-            break
-        }
-        dir = parent
-    }
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
 
-    return "", fmt.Errorf("could not locate the project root containing 'src/data/spatial'")
+	return "", fmt.Errorf("could not locate the project root containing 'src/data/spatial'")
 }
 
 func ensureGeographyCrosswalks(projectRoot string) error {
@@ -170,26 +183,26 @@ func ensureGeographyCrosswalks(projectRoot string) error {
 		filepath.Join("src", "data", "census_tract_to_zip_code.csv"),
 		filepath.Join("src", "data", "zip_code_to_community_area.csv"),
 		filepath.Join("src", "data", "community_area_to_zip_code.csv"),
-    }
+	}
 
-    var missing []string
-    for _, relPath := range required {
-        absPath := filepath.Join(projectRoot, relPath)
-        info, err := os.Stat(absPath)
-        if err != nil || info.Size() == 0 {
-            if rel, relErr := filepath.Rel(projectRoot, absPath); relErr == nil {
-                missing = append(missing, rel)
-            } else {
-                missing = append(missing, absPath)
-            }
-        }
-    }
+	var missing []string
+	for _, relPath := range required {
+		absPath := filepath.Join(projectRoot, relPath)
+		info, err := os.Stat(absPath)
+		if err != nil || info.Size() == 0 {
+			if rel, relErr := filepath.Rel(projectRoot, absPath); relErr == nil {
+				missing = append(missing, rel)
+			} else {
+				missing = append(missing, absPath)
+			}
+		}
+	}
 
-    if len(missing) > 0 {
-        return fmt.Errorf(
-            "required geography crosswalk files missing or empty: %s. run 'python scripts/build_geography_maps.py' to generate them",
-            strings.Join(missing, ", "),
-        )
+	if len(missing) > 0 {
+		return fmt.Errorf(
+			"required geography crosswalk files missing or empty: %s. run 'python scripts/build_geography_maps.py' to generate them",
+			strings.Join(missing, ", "),
+		)
 	}
 
 	return nil

@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"strings"
+
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
@@ -26,6 +28,8 @@ func main() {
 		log.Fatalf("error loading .env file: %v", err)
 	}
 
+	runOnce := strings.EqualFold(os.Getenv("RUN_ONCE"), "true")
+
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
 		connStr = shared.DefaultConnectionString
@@ -45,28 +49,38 @@ func main() {
 		log.Printf("defaulting to port %s", port)
 	}
 
-	go func() {
-		log.Printf("listening on port %s", port)
-		log.Print("Navigate to Cloud Run services and find the URL of your service")
-		log.Print("Use the browser and navigate to your service URL to to check your service has started")
-		if err := http.ListenAndServe(":"+port, nil); err != nil {
-			log.Fatalf("collector server failed: %v", err)
-		}
-	}()
+	if !runOnce {
+		go func() {
+			log.Printf("listening on port %s", port)
+			log.Print("Navigate to Cloud Run services and find the URL of your service")
+			log.Print("Use the browser and navigate to your service URL to to check your service has started")
+			if err := http.ListenAndServe(":"+port, nil); err != nil {
+				log.Fatalf("collector server failed: %v", err)
+			}
+		}()
+	}
 
-	ticker := time.NewTicker(24 * time.Hour)
-	defer ticker.Stop()
-
-	for {
+	runCollectors := func() {
 		log.Print("starting CBI collector microservices ...")
-
 		go GetUnemploymentRates(db)
 		go GetBuildingPermits(db)
 		go GetTaxiTrips(db)
 		go GetCovidDetails(db)
 		go GetCCVIDetails(db)
-
 		log.Print("finished daily update, waiting for next run in 24 hours")
+	}
+
+	if runOnce {
+		runCollectors()
+		log.Print("RUN_ONCE enabled; exiting collectors after single run")
+		return
+	}
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		runCollectors()
 		<-ticker.C
 	}
 }
