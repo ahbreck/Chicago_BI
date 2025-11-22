@@ -70,8 +70,8 @@ func main() {
 
 	if runOnce {
 		runCollectors()
-		log.Print("RUN_ONCE enabled; exiting collectors after single run")
-		return
+		log.Print("RUN_ONCE enabled; collectors will remain idle until Cloud Run scales down the instance")
+		select {}
 	}
 
 	ticker := time.NewTicker(24 * time.Hour)
