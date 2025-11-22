@@ -49,16 +49,14 @@ func main() {
 		log.Printf("defaulting to port %s", port)
 	}
 
-	if !runOnce {
-		go func() {
-			log.Printf("listening on port %s", port)
-			log.Print("Navigate to Cloud Run services and find the URL of your service")
-			log.Print("Use the browser and navigate to your service URL to to check your service has started")
-			if err := http.ListenAndServe(":"+port, nil); err != nil {
-				log.Fatalf("collector server failed: %v", err)
-			}
-		}()
-	}
+	go func() {
+		log.Printf("listening on port %s", port)
+		log.Print("Navigate to Cloud Run services and find the URL of your service")
+		log.Print("Use the browser and navigate to your service URL to to check your service has started")
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			log.Fatalf("collector server failed: %v", err)
+		}
+	}()
 
 	runCollectors := func() {
 		log.Print("starting CBI collector microservices ...")
