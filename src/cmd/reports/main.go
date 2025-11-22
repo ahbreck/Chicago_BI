@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"context"
@@ -42,6 +42,17 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+		log.Printf("defaulting to port %s", port)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	startHTTPServer(ctx, port)
+
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
 		connStr = shared.DefaultConnectionString
@@ -53,9 +64,6 @@ func main() {
 	}
 	defer db.Close()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	log.Print("ensuring spatial datasets are available")
 	if _, err := shared.EnsureSpatialDatasets(ctx, shared.DefaultSpatialDatasets...); err != nil {
 		log.Fatalf("failed to prepare spatial datasets: %v", err)
@@ -66,14 +74,6 @@ func main() {
 	if err := WaitForTablesReady(ctx, db, startupDelay, time.Minute, SourceTables...); err != nil {
 		log.Fatalf("failed to verify disadvantaged report dependencies: %v", err)
 	}
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-		log.Printf("defaulting to port %s", port)
-	}
-
-	startHTTPServer(ctx, port)
 
 	runReports := func() {
 		log.Print("building covid category report")
@@ -95,25 +95,25 @@ func main() {
 		runReports()
 		log.Print("RUN_ONCE enabled; reports will remain idle until Cloud Run scales down the instance")
 		select {}
-	}
+	} else {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
 
-	ticker := time.NewTicker(24 * time.Hour)
-	defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				log.Print("reports microservice shutting down")
+				return
+			default:
+			}
 
-	for {
-		select {
-		case <-ctx.Done():
-			log.Print("reports microservice shutting down")
-			return
-		default:
-		}
+			runReports()
 
-		runReports()
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 		}
 	}
 }
