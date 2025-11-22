@@ -22,7 +22,7 @@ steps:
 
   # Go backend image build/push (collectors + reports binaries in one image)
   - name: "gcr.io/cloud-builders/docker"
-    args: ['build', '-t', 'gcr.io/chicago-bi-478013/go-microservice', '.']
+    args: ['build', '-t', 'gcr.io/chicago-bi-478013/go-microservice', '-f', 'src/Dockerfile', 'src']
   - name: "gcr.io/cloud-builders/docker"
     args: ['push', 'gcr.io/chicago-bi-478013/go-microservice']
 
@@ -59,7 +59,7 @@ steps:
 
   # Frontend build/push/deploy (public)
   - name: "gcr.io/cloud-builders/docker"
-    args: ['build', '-t', 'gcr.io/chicago-bi-478013/frontend', './web']
+    args: ['build', '-t', 'gcr.io/chicago-bi-478013/frontend', 'src/web']
   - name: "gcr.io/cloud-builders/docker"
     args: ['push', 'gcr.io/chicago-bi-478013/frontend']
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
