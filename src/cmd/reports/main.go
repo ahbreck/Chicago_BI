@@ -93,8 +93,8 @@ func main() {
 
 	if runOnce {
 		runReports()
-		log.Print("RUN_ONCE enabled; exiting reports after single run")
-		return
+		log.Print("RUN_ONCE enabled; reports will remain idle until Cloud Run scales down the instance")
+		select {}
 	}
 
 	ticker := time.NewTicker(24 * time.Hour)
