@@ -183,15 +183,18 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			WITH weekly_trips AS (
 				SELECT week_start, "pickup_zip_code" AS zip_code, COUNT(*) AS trips
 				FROM %s
+				WHERE COALESCE(TRIM("pickup_zip_code"), '') <> ''
 				GROUP BY week_start, "pickup_zip_code"
 				UNION ALL
 				SELECT week_start, "dropoff_zip_code" AS zip_code, COUNT(*) AS trips
 				FROM %s
+				WHERE COALESCE(TRIM("dropoff_zip_code"), '') <> ''
 				GROUP BY week_start, "dropoff_zip_code"
 			)
 			SELECT c.*, wt.week_start, SUM(wt.trips) AS weekly_trips
 			FROM %s c
-			JOIN weekly_trips wt ON TRIM(wt.zip_code) = TRIM(c."community_area_or_zip")
+			JOIN weekly_trips wt
+				ON REGEXP_REPLACE(TRIM(wt.zip_code), '\\\\D', '', 'g') = REGEXP_REPLACE(TRIM(c."community_area_or_zip"), '\\\\D', '', 'g')
 			WHERE UPPER(TRIM(c."ccvi_category")) = 'HIGH'
 				AND UPPER(TRIM(c."geography_type")) = 'ZIP'
 			GROUP BY c."id", c."geography_type", c."community_area_or_zip", c."community_area_name", c."ccvi_score", c."ccvi_category", wt.week_start`, CCVIIdent, alertsIdent, alertsIdent, ccviIdent),
