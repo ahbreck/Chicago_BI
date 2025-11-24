@@ -192,7 +192,7 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			SELECT c.*, wt.week_start, SUM(wt.trips) AS weekly_trips
 			FROM %s c
 			JOIN weekly_trips wt ON wt.zip_code = c."community_area_or_zip"
-			WHERE c."ccvi_category" = 'HIGH'
+			WHERE UPPER(c."ccvi_category") = 'HIGH'
 				AND UPPER(c."geography_type") = 'ZIP'
 			GROUP BY c."id", c."geography_type", c."community_area_or_zip", c."community_area_name", c."ccvi_score", c."ccvi_category", wt.week_start`, CCVIIdent, alertsIdent, alertsIdent, ccviIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, CCVISortedIdent),
