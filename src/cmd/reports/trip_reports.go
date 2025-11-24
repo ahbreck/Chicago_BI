@@ -69,6 +69,8 @@ func CreateCovidCategoryReport(db *sql.DB) error {
 			END`, targetIdent),
 		fmt.Sprintf(`DROP TABLE IF EXISTS %s`, alertsIdent),
 		fmt.Sprintf(`CREATE TABLE %s AS TABLE %s`, alertsIdent, tripsIdent),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN zip_code VARCHAR(9) DEFAULT ''`, alertsIdent),
+		fmt.Sprintf(`UPDATE %s SET zip_code = COALESCE(NULLIF(TRIM("pickup_zip_code"), ''), TRIM("dropoff_zip_code"))`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN airport_dropoff BOOLEAN DEFAULT false`, alertsIdent),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN airport_pickup BOOLEAN DEFAULT false`, alertsIdent),
 		fmt.Sprintf(`UPDATE %s
