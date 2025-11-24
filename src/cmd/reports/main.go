@@ -64,10 +64,7 @@ func main() {
 	}
 	defer db.Close()
 
-	log.Print("ensuring spatial datasets are available")
-	if _, err := shared.EnsureSpatialDatasets(ctx, shared.DefaultSpatialDatasets...); err != nil {
-		log.Fatalf("failed to prepare spatial datasets: %v", err)
-	}
+	log.Print("skipping spatial dataset download (legacy GeoJSON assets no longer required)")
 
 	startupDelay := startupDelayDuration()
 	log.Print("waiting for source datasets before starting report refresh loop")
